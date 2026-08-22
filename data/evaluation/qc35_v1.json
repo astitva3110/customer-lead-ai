@@ -1,0 +1,685 @@
+[
+  {
+    "id": "QC01",
+    "evaluation_id": "QC01",
+    "query": "What is the return period for hearing aids?",
+    "expected_document_id": "5f692faa-9f76-5643-9c78-b749258d06b4",
+    "expected_chunk_ids": [
+      "aa86f35205c977e6cbdcada8569a13a6e370cf0e32cabec3b5ccee9cdd9aa399"
+    ],
+    "expected_needles": [
+      "ten (10) calendar days",
+      "1.1.1"
+    ],
+    "category": "return_policy",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC02",
+    "evaluation_id": "QC02",
+    "query": "What is the return period for earplugs?",
+    "expected_document_id": "5f692faa-9f76-5643-9c78-b749258d06b4",
+    "expected_chunk_ids": [
+      "f8689cdb25138aef23b3e09415bba12b20accd07bb388b019a51a8ce29078118"
+    ],
+    "expected_needles": [
+      "seven (7) calendar days",
+      "1.2.1"
+    ],
+    "category": "return_policy",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC03",
+    "evaluation_id": "QC03",
+    "query": "What are earplug return eligibility requirements?",
+    "expected_document_id": "5f692faa-9f76-5643-9c78-b749258d06b4",
+    "expected_chunk_ids": [
+      "2fe0d6bef52b0a2311780fe2f4e49692ac43a594f1e639639ddd4a577ce4e07b"
+    ],
+    "expected_needles": [
+      "1.2.2 Eligibility",
+      "hygiene"
+    ],
+    "category": "return_policy",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC04",
+    "evaluation_id": "QC04",
+    "query": "Must returns include invoice or receipt?",
+    "expected_document_id": "5f692faa-9f76-5643-9c78-b749258d06b4",
+    "expected_chunk_ids": [
+      "d6e4e105c64873c88f1fcb3360ce2b0f9e05e6cd9c610e8213496bb1e39c9a84"
+    ],
+    "expected_needles": [
+      "2.1",
+      "valid invoice/receipt"
+    ],
+    "category": "return_policy",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC05",
+    "evaluation_id": "QC05",
+    "query": "Who pays return shipping?",
+    "expected_document_id": "5f692faa-9f76-5643-9c78-b749258d06b4",
+    "expected_chunk_ids": [
+      "329957252bf07a5be23648de844a092288a4ebb9bbf7b1fbc93d698e46bc7827"
+    ],
+    "expected_needles": [
+      "2.6",
+      "Return shipping costs"
+    ],
+    "category": "return_policy",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC06",
+    "evaluation_id": "QC06",
+    "query": "How do I start a return?",
+    "expected_document_id": "5f692faa-9f76-5643-9c78-b749258d06b4",
+    "expected_chunk_ids": [
+      "361ba68eaa701cc82eea211294e6d5bc9cd5615579dc616860ee5ec3ccab31fd"
+    ],
+    "expected_needles": [
+      "3.1",
+      "info@earkart.com"
+    ],
+    "category": "return_policy",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC07",
+    "evaluation_id": "QC07",
+    "query": "What is RMA?",
+    "expected_document_id": "5f692faa-9f76-5643-9c78-b749258d06b4",
+    "expected_chunk_ids": [
+      "7d26d0d509e4db3de00d4139eab91b2a3c9550c1ce140b825ed445917f6d3d07"
+    ],
+    "expected_needles": [
+      "3.2",
+      "Return Merchandise Authorization"
+    ],
+    "category": "return_policy",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC08",
+    "evaluation_id": "QC08",
+    "query": "Where do I ship returns?",
+    "expected_document_id": "5f692faa-9f76-5643-9c78-b749258d06b4",
+    "expected_chunk_ids": [
+      "10293325eacae5af8dc1ad0b1d7ffad1ede4d0a94243c00cedc62a585cf1de1e"
+    ],
+    "expected_needles": [
+      "3.3",
+      "Sector 62, Noida"
+    ],
+    "category": "return_policy",
+    "importance": "critical",
+    "require_single_chunk": true,
+    "require_all_expected_chunks": true
+  },
+  {
+    "id": "QC09",
+    "evaluation_id": "QC09",
+    "query": "How long for refund after approval?",
+    "expected_document_id": "5f692faa-9f76-5643-9c78-b749258d06b4",
+    "expected_chunk_ids": [
+      "40bfa6c8c50a6aff0a56b2a5beec7779e93630a2e9939116e066911146cfcc95"
+    ],
+    "expected_needles": [
+      "4.1",
+      "seven (7) to ten (10) business days"
+    ],
+    "category": "return_policy",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC10",
+    "evaluation_id": "QC10",
+    "query": "Are statutory consumer rights preserved?",
+    "expected_document_id": "5f692faa-9f76-5643-9c78-b749258d06b4",
+    "expected_chunk_ids": [
+      "127a189805185721d7f922f57ec193d208e769213c523d602566054bb93b908c"
+    ],
+    "expected_needles": [
+      "5. Statutory Rights",
+      "statutory rights"
+    ],
+    "category": "return_policy",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC11",
+    "evaluation_id": "QC11",
+    "query": "How long for replacement delivery?",
+    "expected_document_id": "5f692faa-9f76-5643-9c78-b749258d06b4",
+    "expected_chunk_ids": [
+      "9a22611bee1156806a36b5364ae91743de7aa183ce92ea5c9e87d145c9e42084"
+    ],
+    "expected_needles": [
+      "2.7",
+      "15 days"
+    ],
+    "category": "replacement_policy",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC12",
+    "evaluation_id": "QC12",
+    "query": "Can promotional BOGO items be refunded?",
+    "expected_document_id": "5f692faa-9f76-5643-9c78-b749258d06b4",
+    "expected_chunk_ids": [
+      "d937bae22810235f665b435df7c3d93e41b6d55b9002a2cedb1c0e2e57699f7b"
+    ],
+    "expected_needles": [
+      "4.3",
+      "non-refundable"
+    ],
+    "category": "replacement_policy",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC13",
+    "evaluation_id": "QC13",
+    "query": "Radius M16 BTE battery life?",
+    "expected_document_id": "5f2ec8ed-c57d-5511-8d23-df8adf1b548d",
+    "expected_chunk_ids": [
+      "dc3fbd95a38faa548f3c2eb7ec64e3c701f5de33ac77938edcbd33d0f710d98f"
+    ],
+    "expected_needles": [
+      "270 Hrs",
+      "Battery Life"
+    ],
+    "category": "product_spec",
+    "importance": "critical",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC14",
+    "evaluation_id": "QC14",
+    "query": "Radius M16 BTE battery size?",
+    "expected_document_id": "5f2ec8ed-c57d-5511-8d23-df8adf1b548d",
+    "expected_chunk_ids": [
+      "df5dace7bf736770f4bfa3a536c25c540766176b21d2df3846811c21413b52ae"
+    ],
+    "expected_needles": [
+      "Battery Size",
+      "13"
+    ],
+    "category": "product_spec",
+    "importance": "critical",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC15",
+    "evaluation_id": "QC15",
+    "query": "Radius M16 attack time?",
+    "expected_document_id": "5f2ec8ed-c57d-5511-8d23-df8adf1b548d",
+    "expected_chunk_ids": [
+      "df5dace7bf736770f4bfa3a536c25c540766176b21d2df3846811c21413b52ae"
+    ],
+    "expected_needles": [
+      "Attack Time 28 ms"
+    ],
+    "category": "product_spec",
+    "importance": "critical",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC16",
+    "evaluation_id": "QC16",
+    "query": "Radius M16 release time?",
+    "expected_document_id": "5f2ec8ed-c57d-5511-8d23-df8adf1b548d",
+    "expected_chunk_ids": [
+      "df5dace7bf736770f4bfa3a536c25c540766176b21d2df3846811c21413b52ae"
+    ],
+    "expected_needles": [
+      "Release Time 891 ms"
+    ],
+    "category": "product_spec",
+    "importance": "critical",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC17",
+    "evaluation_id": "QC17",
+    "query": "Radius M16 fitting range?",
+    "expected_document_id": "5f2ec8ed-c57d-5511-8d23-df8adf1b548d",
+    "expected_chunk_ids": [
+      "dc3fbd95a38faa548f3c2eb7ec64e3c701f5de33ac77938edcbd33d0f710d98f"
+    ],
+    "expected_needles": [
+      "Fitting Range",
+      "30 -120 dB"
+    ],
+    "category": "product_spec",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC18",
+    "evaluation_id": "QC18",
+    "query": "Return shipping deadline after approval?",
+    "expected_document_id": "5f692faa-9f76-5643-9c78-b749258d06b4",
+    "expected_chunk_ids": [
+      "d4c3ede8eede4481dbf3bb0242e9185876227f34298cf6090ef45887b81cae32"
+    ],
+    "expected_needles": [
+      "2.3",
+      "five (5) business days"
+    ],
+    "category": "shipping",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC19",
+    "evaluation_id": "QC19",
+    "query": "Are unauthorized reseller products eligible?",
+    "expected_document_id": "5f692faa-9f76-5643-9c78-b749258d06b4",
+    "expected_chunk_ids": [
+      "dd98ecb3b40422842a0ca9e864675f7145653b2cb86da206f9a1290c385fa374"
+    ],
+    "expected_needles": [
+      "2.4",
+      "unauthorized resellers"
+    ],
+    "category": "warranty",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC20",
+    "evaluation_id": "QC20",
+    "query": "What voids return eligibility for damage?",
+    "expected_document_id": "5f692faa-9f76-5643-9c78-b749258d06b4",
+    "expected_chunk_ids": [
+      "cc3aaaafc92935307079452105cb1f8858802f4d80c14da4730ebeca015149bf"
+    ],
+    "expected_needles": [
+      "2.2",
+      "misuse, physical damage"
+    ],
+    "category": "warranty",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC21",
+    "evaluation_id": "QC21",
+    "query": "FAQ battery life answer?",
+    "expected_document_id": null,
+    "expected_chunk_ids": [
+      "18c7357567619a7c0ef786a4ff06abca0026efb6021e49e551b7844ae155f611",
+      "a35a0d946f6b4aa9d850f0281b665c57655915194d0a8c41aa0bec794ec5560e",
+      "74c88d7653e245252cce85ad1e8ccafc17eacd4c7ddcdf386869f21b72754898",
+      "993e5cfca9392aaaac18d6389bd61dc97db0e72ee7c18606d91e36267775d033"
+    ],
+    "expected_needles": [
+      "Question:",
+      "Answer:",
+      "battery"
+    ],
+    "category": "faq",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC22",
+    "evaluation_id": "QC22",
+    "query": "FAQ content atomicity?",
+    "expected_document_id": null,
+    "expected_chunk_ids": [
+      "8937137cf50aceca436ff4d3fa79f13f11ee8b78f2a8592a69c07a73a9674499",
+      "680f09c9bc0b5ce0fcc7a4aa91fea1d69f16b9242d62c9870769be5d1e40b9e9",
+      "d3d3227fcf8a98b2937526046884d65d2d8db538ebffc55da63a1f75449f7ff1",
+      "ebcbda146805f534f676705bdb3c42b62e9fed1aea40ce94280df612ec259b95",
+      "70460ceaa7ffc0fd5683389b33f84f3c064c3889cb3922978312ea4eb4e6d083",
+      "4922930c9c3ff5afd7f9127cd7a058999c6dc92650221c02ca4af26d0e79dfbc",
+      "ec28228c9606a3443696e539fda38da521537958002709b4a33d2e8712247ed6",
+      "9bfcd9b6068964c1b2b7eb80d14fca05fc576ae43e166b62735b9187905b815d",
+      "4b7bba53f00a419d3b220b313fc8031a358848b3e008484fba50b9ab87f3bc75",
+      "641c0dc12160e151ad00565aada9e3f6699f59c58f57cf299833df440a676f4f",
+      "b830eebcbc434e06c99800caee2638555103a0f22ae46e8594765e18474a806b",
+      "18c7357567619a7c0ef786a4ff06abca0026efb6021e49e551b7844ae155f611",
+      "6ff1ec07e4c0e9b4c8a6b71f44eeeadf58e90d3bb146b1c1b9e906b582cfefad",
+      "2c940d7bd14da10e7ab0617ecfaf63e69c6cac8f14a73e004f55b47425089d80",
+      "9e4035af0222df076c22f93665d1cf4879732e4c0a4430244f98b61ec898cb77",
+      "223693cd1d503a0c20bf14dd20c30e21223897680b802e7fe0439e1986176c70",
+      "cb4e66a66c6176f97126d03ddc49e4b01aa049beea43344addf870535b733225",
+      "154b024c0dfff191940e0344c6c9df3a46fb367b196296698c280f04a1b3f329",
+      "ac7d19667ed76f7e3dcc08282417fe8eeeed6aedb1d190b4ef69d1bd58a21df9",
+      "4a47947417eae8bbdde5b1bdb8f69ed1d04d09a4878700a4346bca3a5a880452",
+      "01109bf08e92cdf5cd817e018b5f5b893af7f7a052081934044d6467e4bdfe95",
+      "540687eda5a778ad225b76ad497624799dda6691393572452f5139d0b4a7a382",
+      "545bc339af43a369cd0de24abfa83870b61b8bb9afe10f44e312439034590b56",
+      "f893588286f5e1ede59c82ad110e1d88a70144c1cea812523a1a8e9ff8c78bad",
+      "87380b6540326276fa30aba86e0cfe2c62c553e5a266baeeb9d9fdbb23ec3aa5",
+      "0da8d062e56a87b98c5f60a81358c49c55eb691b8b7693f179b48df94acc8516",
+      "68417b513056da0949d3f5fc24ec6635fb42fab4e183bce8896797ae1403a812",
+      "d39e25bedc92225475915cbb6045bbc39eee17c9b3ee897b1226b97635771815",
+      "072e5e5e644bb1f6d96dfac9bb74645a870410810542be87f5515e329c2d78fb",
+      "d36c6b195e42d2ab1fadd8f6ec106fba3e2b8a86eec30c8fdd5daa7e628fcea0",
+      "35b58156a39ef77a466be84d807301caec41564d96508de0f2e0528c09e62a6d",
+      "0a48b5a2f1146b2cc86d397f072814351c00e6a8ecfda64aac9fa36d55260b8a",
+      "8c0fe69a76b46839476ed9388a38f3949ca009c80d6da7f4264f4fbd9e26f9b5",
+      "87d2be85bf402cde740ae2c40b7ceafed7eb152afa04ee465b7deef3f4f3f170",
+      "707fa09a9bf5dc42616f108b7394c570e1fb742678719f106305abdd0d15176d",
+      "0187c7df073291e480e5e4564915428ba4aeb81f2ee51a3aea2bba052d52f02a",
+      "abf570d779649497f2689a0dbd39a12482999dc7dbed5a6261013c219d73b8a2",
+      "dc81fba0071ef399e9e37b9e41b9b389c0f3357e96c619010a5eed7652e07773",
+      "6fc6a8753fa9757ef7dee98275da08f6213d992896f7ef0352af1bf5367c8e5f",
+      "f5d838402e72bacf63a356f2413ee467cd33a0a6544fda62dba06c12841e1973",
+      "acc53121fa3d5f6ed8772165374f2fc0a94a4a208458f8bd019840ba83b5c040",
+      "32f8412569928e3b3939eb8c0a399c773dbed15b96bc92bc40526b9b094ee052",
+      "e6c7709d33c7edd62a2cd84174b02a547996ddc88e419e28e9fbbd46611cb8f8",
+      "b6a13d90609f43bb73a3996c78b40e876abf1cd4e4a683faacc89c03f989644b",
+      "a35a0d946f6b4aa9d850f0281b665c57655915194d0a8c41aa0bec794ec5560e",
+      "9a7cea38f346f7d8f452b8a55f8d957c7310e866dd0c87c4169a195c5228d611",
+      "80d1359608d8fbac18a0162415cc24bd968642873ba94e024c8b8a6dbf36ec6d",
+      "802050f1580bea2e68f87d22e85fb6b28a44bac14e835ba9f2bb473ff80fae6b",
+      "72b2f70b78251a2916bee48cf58e87acd6c8638434bbde2031473ab431f3aebf",
+      "de76df480bf5b8158fa853c8b8c3195ad047d77d2f43c1b6647b635a8429a43b",
+      "1b974be24e98d35a3832fcdcb436e547e5e6a72990d5934421413185d1d40150",
+      "bb20991dba88628cc4f8be195689af88dcdb2a67e63eb83a4b05bdafc5c780cf",
+      "d54726a79d0baa65d30c475d958569020e2486eb7d41e02d6df7761c6e7167d6",
+      "c0bcc56fbc6ee6f496556fb5f87ddc26496cf9473a09377bcda138d415081f30",
+      "8ff8b5bcc7201b8157822e7fe2db8be47639e38231d959bd6dd8df700801031d",
+      "e5321904c92ecd703a2a34cb7efda97446a3fda185fc835dc3f28a2f7a56daa0",
+      "79a7e718dce7009059b2396be8bd05a91fbdc28c826b86f0d71ea97b014bf03f",
+      "329454b63bdfbca93d00fcf7cf518824c2a87804d0307019cc0deba58279607a",
+      "7e7ac3248fa7e7f9439984ea131f3459da60637eaee2894fd7b11d38ef767334",
+      "74c88d7653e245252cce85ad1e8ccafc17eacd4c7ddcdf386869f21b72754898",
+      "993e5cfca9392aaaac18d6389bd61dc97db0e72ee7c18606d91e36267775d033"
+    ],
+    "expected_needles": [
+      "Question:",
+      "Answer:"
+    ],
+    "category": "faq",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC23",
+    "evaluation_id": "QC23",
+    "query": "Investor IPO prospectus risk disclosure exists?",
+    "expected_document_id": "01e76cb2-317f-509a-b8b5-f473f5bd5400",
+    "expected_chunk_ids": [
+      "6731cf870d9066c67863291d6e2e1e7a5bf89b5f3ac5bd3acc6330e7ea650e7d",
+      "64c6deb2754ee06abd3b8a68508db9e0487d509bd7c92a593742ed6a6b60b5aa"
+    ],
+    "expected_needles": [
+      "risk factors",
+      "Investments in equity"
+    ],
+    "category": "investor",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC24",
+    "evaluation_id": "QC24",
+    "query": "Final prospectus company address?",
+    "expected_document_id": "8bd45b19-cb3d-5e56-ad5a-b67f1af7d2f9",
+    "expected_chunk_ids": [
+      "357a2c02a8bb4fb7fc7d741441d5902854727b22162a6043a8805b6c7907f6d6"
+    ],
+    "expected_needles": [
+      "Sector 63",
+      "Noida"
+    ],
+    "category": "investor",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC25",
+    "evaluation_id": "QC25",
+    "query": "Draft prospectus offer document present?",
+    "expected_document_id": "01e76cb2-317f-509a-b8b5-f473f5bd5400",
+    "expected_chunk_ids": [
+      "b3608b3919122ede8fb8704ad0cc6c7da177db68b92b1f0cb677f39b78f783f8",
+      "f4e0db14b9bd26bf504e13a49dc1dbe4ff42a17613d9f4575f9f56c4859e2569"
+    ],
+    "expected_needles": [
+      "DRHP",
+      "Public Issue"
+    ],
+    "category": "investor",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": true
+  },
+  {
+    "id": "QC26",
+    "evaluation_id": "QC26",
+    "query": "PDF page provenance on Radius spec sheet?",
+    "expected_document_id": "5f2ec8ed-c57d-5511-8d23-df8adf1b548d",
+    "expected_chunk_ids": [
+      "dc3fbd95a38faa548f3c2eb7ec64e3c701f5de33ac77938edcbd33d0f710d98f"
+    ],
+    "expected_needles": [
+      "Battery Life"
+    ],
+    "category": "pdf",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC27",
+    "evaluation_id": "QC27",
+    "query": "OCR due diligence certificate content?",
+    "expected_document_id": null,
+    "expected_chunk_ids": [
+      "00b5c0e93d414db5389edd107b732bba02a4d83db1efe7214afd9cfc8418b55a"
+    ],
+    "expected_needles": [
+      "Due Diligence Certificate",
+      "SEBI"
+    ],
+    "category": "ocr",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC28",
+    "evaluation_id": "QC28",
+    "query": "OCR document retains meaningful certification text?",
+    "expected_document_id": null,
+    "expected_chunk_ids": [
+      "ecfee2e8e1c405c9fff4145845b2e27a406f558c57ce70ef9f2c76a5746505d1",
+      "a37357210bedc552587a0b2c250958667bfc93567ff147b62e31abce11a025ff",
+      "07b94637357b744ea0e461bf3384de5ba9b8fa0368cc2638e5de2eba9c409623",
+      "ba689b52ab211bbb629794c3f66796f2ae85f45785841afc3ba4092c56f7658e",
+      "e2a4446f4146c534ad6b6d3046763e89c25956adb637e75b28272ababb2a3338",
+      "d04fe84ae374e412f65b373546f5c3bc3c64f6a4869ce3d880e1e04dd18ef53f"
+    ],
+    "expected_needles": [
+      "certify",
+      "Prospectus"
+    ],
+    "category": "ocr",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC29",
+    "evaluation_id": "QC29",
+    "query": "Prospectus section hierarchy preserved?",
+    "expected_document_id": "01e76cb2-317f-509a-b8b5-f473f5bd5400",
+    "expected_chunk_ids": [
+      "3444486d0551c3e19a7efe52d795e357f22e07f08445fa2c5f13cedf313e2920",
+      "80383608aad690fbde7e1b0bc1379362ed5dddab7a225a87b760fa531b413a88",
+      "f06e7d512ecdcf135c01222a32ccabba2f29239d0c791c3dfcc8a5032e6745e0",
+      "10d021048d0e7bde0394ef497a591667ecb8754225ab4396507b753fc749b13d",
+      "e046aa4735768e7d15971304ffa57569a20d4f7f7104b9eebcd24bb68953c580",
+      "750c0d37b18afb65a13f7712c4dac0f7fe687b35f4861e9427e3a38ab2c837f6",
+      "3ac0aa00874ab04ed830ef3d9125c279b844e3823bf82434f257caa3180f97d7",
+      "c112054dbfe6efc1484fd229e87959dea3d8d149028bda5ef01ac1fe23bf7abf",
+      "d5528616d81a406a16572a0762a5a83ef743b32ddb1a0a4c9c7ef6eacb5bbf4d",
+      "ead36a28bc76bd886675b72486fabcfaa56c46c07c4e832d4e583750c897864e",
+      "b3e85dc870c201374cffd9819d21b8babed1a3d3e3bea6f81b6720d9583e5a27"
+    ],
+    "expected_needles": [
+      "SECTION",
+      "GENERAL"
+    ],
+    "category": "prospectus",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC30",
+    "evaluation_id": "QC30",
+    "query": "Prospectus manufacturing facility risk factor?",
+    "expected_document_id": "01e76cb2-317f-509a-b8b5-f473f5bd5400",
+    "expected_chunk_ids": [
+      "bef05d244cbbd9dad12b5a83c225032fe72395ca03ea20c1170ad4fb0d8d92af",
+      "f675e156507b18f81dc06a399705a2829672da4860cbdf24142249cc6f5c9a39",
+      "e1ca18955bfb6cbc69c7b9e9e1a9d72495f8719665d90a408c499890fee3881b"
+    ],
+    "expected_needles": [
+      "Manufacturing Facility",
+      "Noida"
+    ],
+    "category": "prospectus",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC31",
+    "evaluation_id": "QC31",
+    "query": "Earkart contact email in policy?",
+    "expected_document_id": "5f692faa-9f76-5643-9c78-b749258d06b4",
+    "expected_chunk_ids": [
+      "361ba68eaa701cc82eea211294e6d5bc9cd5615579dc616860ee5ec3ccab31fd"
+    ],
+    "expected_needles": [
+      "info@earkart.com"
+    ],
+    "category": "company",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC32",
+    "evaluation_id": "QC32",
+    "query": "Earkart phone support for returns?",
+    "expected_document_id": "5f692faa-9f76-5643-9c78-b749258d06b4",
+    "expected_chunk_ids": [
+      "361ba68eaa701cc82eea211294e6d5bc9cd5615579dc616860ee5ec3ccab31fd"
+    ],
+    "expected_needles": [
+      "9289097578"
+    ],
+    "category": "company",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC33",
+    "evaluation_id": "QC33",
+    "query": "Inspection timeline after product receipt?",
+    "expected_document_id": "5f692faa-9f76-5643-9c78-b749258d06b4",
+    "expected_chunk_ids": [
+      "8ea851cbeceb614b2d61a3b04fd739116182eb0ff8ff248a667cdf41ddad8599"
+    ],
+    "expected_needles": [
+      "3.4",
+      "five (5) business days"
+    ],
+    "category": "replacement_policy",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC34",
+    "evaluation_id": "QC34",
+    "query": "Radius M16 frequency range?",
+    "expected_document_id": "5f2ec8ed-c57d-5511-8d23-df8adf1b548d",
+    "expected_chunk_ids": [
+      "dc3fbd95a38faa548f3c2eb7ec64e3c701f5de33ac77938edcbd33d0f710d98f"
+    ],
+    "expected_needles": [
+      "Frequency Range",
+      "250 Hz"
+    ],
+    "category": "product_spec",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  },
+  {
+    "id": "QC35",
+    "evaluation_id": "QC35",
+    "query": "Prospectus promoter information?",
+    "expected_document_id": "8bd45b19-cb3d-5e56-ad5a-b67f1af7d2f9",
+    "expected_chunk_ids": [
+      "ebfeb95b4bd7c1747de385b1efaaab801c51bb1d1e6d4677701c906b9b542d8e",
+      "e6227577007b273b0e056ee276fcd6eb4ccc8a15f8706a91ad457d207b52a76d",
+      "1fab6605441bba23b056a1b245ad7232c4408ec390e05d00a706b4d074d8d8d8",
+      "7b414537b3b05758e3a439b66efa77fc971dbde14c08bf7837f74a07fd887267",
+      "9d702c09dbdbb6f1ebd6fef07a5dad198613b61ee826e1490b9dbfec80a0a5df",
+      "489af71c06363d8ea27fc712519caa68ddbe68d0c60d32b71c1cba797d44c750",
+      "63b48591f403dc4f25c2ce8e850c57dcaf246b1b527e1b5ff572ed1441b49d59",
+      "360511dc441e9127385bdd28fe170ec272c315cb3a2246cfd42e8a8bdb066a3b",
+      "6e2428f1c7ba126f213f9d32d2acec60f8b7a6a1738b81370ab2296417de4efb",
+      "0610a259510da8a19a24d1d7d070f30eebca06c81e5781d48219bf32169333f6",
+      "691a2d764a500b161cd73589d86cb1773d0ec14662e54c1c5be4bbb3affa3479"
+    ],
+    "expected_needles": [
+      "PROMOTERS",
+      "ROHIT MISRA"
+    ],
+    "category": "investor",
+    "importance": "standard",
+    "require_single_chunk": false,
+    "require_all_expected_chunks": false
+  }
+]

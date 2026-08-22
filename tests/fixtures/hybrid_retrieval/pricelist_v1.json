@@ -1,0 +1,73 @@
+{
+  "document_id": "6bb9a4ee-ecf4-58ff-9eaa-3206d27d9b0d",
+  "title": "earKART Product Pricelist 2026",
+  "questions": [
+    {
+      "id": "keyword_cdsco",
+      "kind": "keyword",
+      "query": "CDSCO Central Drugs Standard Control Organisation",
+      "expected_page": 1,
+      "expected_chunk_ids": [
+        "2e68ceac7658f81945776a3e1cfb9dde26c6b02ce5b273ab619c80a34ec54c94",
+        "b8907d55acafa46dc6def3d3a808926c49d1174f71bb6659edfb76999f546260"
+      ],
+      "content_patterns": ["CDSCO"]
+    },
+    {
+      "id": "keyword_radius_16_mrp",
+      "kind": "keyword",
+      "query": "Radius 16 MRP 27500",
+      "expected_page": 3,
+      "expected_chunk_ids": ["603300a5e4f502af5a767c24123fdb67d1310c9fa986dd2f8c65dba82fb27023"],
+      "content_patterns": ["Radius 16", "27,500"]
+    },
+    {
+      "id": "keyword_tiny_cic",
+      "kind": "keyword",
+      "query": "TINY Rechargeable CIC Hearing Aid 33000",
+      "expected_page": 3,
+      "expected_chunk_ids": ["cc9d48c0ef6bd7f8f8edbaad123a8c9fecf36899e6db54f6cb7de424fb7e5b77"],
+      "content_patterns": ["TINY", "33,000"]
+    },
+    {
+      "id": "keyword_fame_sp",
+      "kind": "keyword",
+      "query": "FAME SP Severe to Profound Hearing Loss 0-115 dB",
+      "expected_page": 4,
+      "expected_chunk_ids": ["a72b92195c53411373f5eb353b126175812334f4dc8f053c2cda9bb5bf4dd8c9"],
+      "content_patterns": ["FAME SP", "0-115 dB"]
+    },
+    {
+      "id": "keyword_fort_ultra",
+      "kind": "keyword",
+      "query": "FORT ULTRA POWER Trimmer Digital Hearing Aid 19900",
+      "expected_page": 5,
+      "expected_chunk_ids": ["864de4dfa11c9876a70cfd6d86990c114b81a0838a5f3b0d9136ea5bcae220"],
+      "content_patterns": ["FORT ULTRA POWER", "19,900"]
+    },
+    {
+      "id": "keyword_no_cost_emi",
+      "kind": "keyword",
+      "query": "0% No Cost EMI Free 1 Year Insurance",
+      "expected_page": 2,
+      "expected_chunk_ids": ["897856512765d05d489cf27d0f69b6e80e4f15657331c1b5e658a7d8809676f7"],
+      "content_patterns": ["0% No Cost EMI"]
+    },
+    {
+      "id": "semantic_about_earkart",
+      "kind": "semantic",
+      "query": "What is Earkart and how does it deliver hearing care?",
+      "expected_page": 1,
+      "expected_chunk_ids": ["ee142645808820f93ddb7671a4881aaefd6d335f14eeebdb9a27b4c41210787e"],
+      "content_patterns": ["digital-first hearing care platform"]
+    },
+    {
+      "id": "semantic_omni",
+      "kind": "semantic",
+      "query": "What is Earkart OMNI remote hearing diagnostic?",
+      "expected_page": 2,
+      "expected_chunk_ids": ["e2a2d91b59f7f6eea4cb811f2b0e78e309c80d8187e3b50f130cf1fdd256fc96"],
+      "content_patterns": ["Remote Audiology Solution"]
+    }
+  ]
+}

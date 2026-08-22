@@ -1,0 +1,56 @@
+# Exploratory scenario generator + observer. Change this file (or a copy) for
+# a new dataset/corpus/model — do not fork the evaluator implementation.
+# Scenario fields in generated conversations are hypotheses, not production GT.
+# Candidate failures are emitted only from verified catalog knowledge_keys
+# and explicit deterministic production rules. No overall pass rate.
+
+evaluator_version: "1.1.0"
+dataset_version: "mass-v1"
+corpus_version: "v3.2"
+knowledge_catalog: data/evaluations/earkart_kb_v3_1_comprehensive.json
+
+generator_model: "qwen3:1.7b"
+ollama_endpoint: "http://127.0.0.1:11434"
+use_llm: true
+generator_temperature: 0.7
+generator_timeout_seconds: 60
+
+count: 1000
+seed: 42
+min_turns: 3
+max_turns: 12
+
+language_distribution:
+  en: 0.9
+  hi: 0.1
+
+category_distribution:
+  KNOWLEDGE_DIRECT: 0.10
+  KNOWLEDGE_PARAPHRASED: 0.08
+  KNOWLEDGE_FOLLOWUP: 0.08
+  PRODUCT_COMPARISON: 0.05
+  NOISY_QUERY: 0.05
+  CORPUS_GAP: 0.05
+  LEAD: 0.10
+  LEAD_WITH_KNOWLEDGE: 0.10
+  LEAD_PRODUCT_SWITCH: 0.05
+  SUPPORT: 0.08
+  SUPPORT_WITH_KNOWLEDGE: 0.08
+  SUPPORT_PRODUCT_SWITCH: 0.03
+  MIXED_INTENT: 0.05
+  VOLUNTEERED_CONTEXT: 0.03
+  GUARDRAIL: 0.03
+  PROMPT_INJECTION: 0.02
+  NONSENSE: 0.03
+
+concurrency: 4
+timeout_seconds: 120
+retry_count: 1
+resume: true
+
+trace_enabled: true
+save_full_traces: true
+chat_trace_retrieval_top_k: 10
+
+output_dir: reports/mass_eval
+generated_output: data/evaluations/generated/v1.json

@@ -1,0 +1,15 @@
+# Eval-only fusion comparison. Does not change production HybridRetriever.
+
+top_k: 10
+cap: 30
+rrf_k: 60
+weighted_vector: 0.7
+weighted_keyword: 0.3
+rank_vector: 0.5
+rank_keyword: 0.5
+
+strategies:
+  - current_merge
+  - rrf
+  - weighted
+  - rank_normalized

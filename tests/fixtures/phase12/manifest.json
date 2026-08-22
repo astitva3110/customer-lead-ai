@@ -1,0 +1,39 @@
+{
+  "documents": [
+    {
+      "id": "digital_pdf",
+      "filename": "digital_product.pdf",
+      "document_type": "product"
+    },
+    {
+      "id": "scanned_pdf",
+      "filename": "scanned_brochure.pdf",
+      "document_type": "brochure"
+    },
+    {
+      "id": "brochure_pdf",
+      "filename": "brochure_overview.pdf",
+      "document_type": "brochure"
+    },
+    {
+      "id": "docx_policy",
+      "filename": "policy_returns.docx",
+      "document_type": "policy"
+    },
+    {
+      "id": "table_pdf",
+      "filename": "product_specs_table.pdf",
+      "document_type": "product"
+    },
+    {
+      "id": "design_pdf",
+      "filename": "design_brochure.pdf",
+      "document_type": "brochure"
+    },
+    {
+      "id": "product_docx",
+      "filename": "radius_m16.docx",
+      "document_type": "product"
+    }
+  ]
+}

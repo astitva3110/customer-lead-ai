@@ -1,0 +1,362 @@
+{
+  "document_id": "6bb9a4ee-ecf4-58ff-9eaa-3206d27d9b0d",
+  "title": "earKART Product Pricelist 2026 — expanded golden set",
+  "notes": "Threshold stays 0.0. Negative queries are corpus gaps. Ambiguous queries accept any matching pattern.",
+  "questions": [
+    {
+      "id": "fact_cdsco",
+      "category": "exact_factual",
+      "answerable": true,
+      "query": "CDSCO Central Drugs Standard Control Organisation",
+      "expected_page": 1,
+      "content_patterns": ["CDSCO"]
+    },
+    {
+      "id": "fact_iso_13485",
+      "category": "exact_factual",
+      "answerable": true,
+      "query": "ISO 13485:2016 certificate",
+      "expected_page": 1,
+      "content_patterns": ["ISO 13485:2016"]
+    },
+    {
+      "id": "fact_government_order",
+      "category": "exact_factual",
+      "answerable": true,
+      "query": "First Government order for 10,000 Hearing Aids units",
+      "expected_page": 1,
+      "content_patterns": ["10,000 Hearing Aids"]
+    },
+    {
+      "id": "fact_md5_md42",
+      "category": "exact_factual",
+      "answerable": true,
+      "query": "License to Manufacture and Distribute Hearing Aids MD5 MD42",
+      "expected_page": 1,
+      "content_patterns": ["MD5", "MD42"]
+    },
+    {
+      "id": "fact_bse_sme",
+      "category": "exact_factual",
+      "answerable": true,
+      "query": "Listed on BSE SME Platform",
+      "expected_page": 1,
+      "content_patterns": ["BSE SME"]
+    },
+    {
+      "id": "fact_is_16127",
+      "category": "exact_factual",
+      "answerable": true,
+      "query": "Radius certification IS 16127 CM/L 8800111109",
+      "expected_page": 3,
+      "content_patterns": ["IS 16127"]
+    },
+    {
+      "id": "fact_omni_patent",
+      "category": "exact_factual",
+      "answerable": true,
+      "query": "Earkart OMNI Patent Granted",
+      "expected_page": 2,
+      "content_patterns": ["Patent Granted"]
+    },
+    {
+      "id": "fact_msme_awards",
+      "category": "exact_factual",
+      "answerable": true,
+      "query": "India MSME Awards",
+      "expected_page": 1,
+      "content_patterns": ["India MSME Awards"]
+    },
+    {
+      "id": "fact_free_consultation",
+      "category": "exact_factual",
+      "answerable": true,
+      "query": "Free Online Consultation by Audiologist",
+      "expected_page": 2,
+      "content_patterns": ["Free Online Consultation"]
+    },
+    {
+      "id": "fact_shop_in_shop",
+      "category": "exact_factual",
+      "answerable": true,
+      "query": "Launch of ENT Shop in Shop Model",
+      "expected_page": 2,
+      "content_patterns": ["Shop in Shop"]
+    },
+    {
+      "id": "sem_about_earkart",
+      "category": "semantic",
+      "answerable": true,
+      "query": "What is Earkart and how does it deliver hearing care?",
+      "expected_page": 1,
+      "content_patterns": ["digital-first hearing care platform"]
+    },
+    {
+      "id": "sem_omni_remote",
+      "category": "semantic",
+      "answerable": true,
+      "query": "What is Earkart OMNI remote hearing diagnostic?",
+      "expected_page": 2,
+      "content_patterns": ["Remote Audiology Solution"]
+    },
+    {
+      "id": "sem_omni_locations",
+      "category": "semantic",
+      "answerable": true,
+      "query": "Where can OMNI be used for hearing diagnostics?",
+      "expected_page": 2,
+      "content_patterns": ["clinics", "retail"]
+    },
+    {
+      "id": "sem_make_in_india",
+      "category": "semantic",
+      "answerable": true,
+      "query": "Does Earkart manufacture hearing solutions in India?",
+      "expected_page": 1,
+      "content_patterns": ["Make in India"]
+    },
+    {
+      "id": "sem_omni_modules",
+      "category": "semantic",
+      "answerable": true,
+      "query": "Which hearing tests are included in OMNI diagnostics?",
+      "expected_page": 2,
+      "content_patterns": ["Audiometry", "Tympanometry"]
+    },
+    {
+      "id": "sem_tiny_what",
+      "category": "semantic",
+      "answerable": true,
+      "query": "What kind of hearing aid is TINY?",
+      "expected_page": 3,
+      "content_patterns": ["TINY", "Rechargeable CIC"]
+    },
+    {
+      "id": "sem_fame_non_programmable",
+      "category": "semantic",
+      "answerable": true,
+      "query": "Is the FAME series programmable or non programmable?",
+      "expected_page": 4,
+      "content_patterns": ["FAME Series", "Non Programmable"]
+    },
+    {
+      "id": "sem_upgrade_save",
+      "category": "semantic",
+      "answerable": true,
+      "query": "How much can a customer save by upgrading a hearing aid?",
+      "expected_page": 2,
+      "content_patterns": ["25,000"]
+    },
+    {
+      "id": "sem_fullstack_remote",
+      "category": "semantic",
+      "answerable": true,
+      "query": "What product is described as the world's first fullstack remote hearing diagnostic?",
+      "expected_page": 2,
+      "content_patterns": ["Fullstack Remote Hearing Diagnostic"]
+    },
+    {
+      "id": "sem_partner_clinics",
+      "category": "semantic",
+      "answerable": true,
+      "query": "Does Earkart work with partner clinics and certified audiologists?",
+      "expected_page": 1,
+      "content_patterns": ["partner clinics", "certified"]
+    },
+    {
+      "id": "num_radius_16",
+      "category": "numerical",
+      "answerable": true,
+      "query": "What is the MRP of Radius 16?",
+      "expected_page": 3,
+      "content_patterns": ["Radius 16", "27,500"]
+    },
+    {
+      "id": "num_radius_8",
+      "category": "numerical",
+      "answerable": true,
+      "query": "What is the MRP of Radius 8?",
+      "expected_page": 3,
+      "content_patterns": ["Radius 8", "22,500"]
+    },
+    {
+      "id": "num_tiny_33000",
+      "category": "numerical",
+      "answerable": true,
+      "query": "How much does the TINY rechargeable CIC cost?",
+      "expected_page": 3,
+      "content_patterns": ["TINY", "33,000"]
+    },
+    {
+      "id": "num_fame_8900",
+      "category": "numerical",
+      "answerable": true,
+      "query": "What is the MRP of the FAME model at 8900?",
+      "expected_page": 4,
+      "content_patterns": ["8,900"]
+    },
+    {
+      "id": "num_fort_19900",
+      "category": "numerical",
+      "answerable": true,
+      "query": "What is the MRP of FORT ULTRA POWER?",
+      "expected_page": 5,
+      "content_patterns": ["FORT ULTRA POWER", "19,900"]
+    },
+    {
+      "id": "multi_fame_sp",
+      "category": "multi_condition",
+      "answerable": true,
+      "query": "Which FAME model covers severe to profound loss with fitting range 0-115 dB?",
+      "expected_page": 4,
+      "content_patterns": ["FAME SP", "0-115 dB"]
+    },
+    {
+      "id": "multi_tiny_set",
+      "category": "multi_condition",
+      "answerable": true,
+      "query": "TINY rechargeable CIC price for a set of 2 hearing aids and a charger with 2 year warranty",
+      "expected_page": 3,
+      "content_patterns": ["Set of 2", "33,000"]
+    },
+    {
+      "id": "multi_radius_16_channels",
+      "category": "multi_condition",
+      "answerable": true,
+      "query": "Radius 16 with 16 channels and 32 bands MRP",
+      "expected_page": 3,
+      "content_patterns": ["16 Channels", "32 Bands"]
+    },
+    {
+      "id": "multi_fame_p",
+      "category": "multi_condition",
+      "answerable": true,
+      "query": "FAME P upto severe hearing loss 0-105 dB with 675 zinc air battery",
+      "expected_page": 4,
+      "content_patterns": ["FAME P", "0-105 dB"]
+    },
+    {
+      "id": "multi_fort_battery",
+      "category": "multi_condition",
+      "answerable": true,
+      "query": "FORT ULTRA POWER 19900 with 675 battery covering profound hearing loss",
+      "expected_page": 5,
+      "content_patterns": ["19,900", "Profound Hearing Loss"]
+    },
+    {
+      "id": "neg_cochlear_lifetime",
+      "category": "negative",
+      "answerable": false,
+      "query": "What is Earkart's lifetime warranty policy for cochlear implants?",
+      "content_patterns": []
+    },
+    {
+      "id": "neg_new_york_stores",
+      "category": "negative",
+      "answerable": false,
+      "query": "Where are Earkart retail stores in New York City?",
+      "content_patterns": []
+    },
+    {
+      "id": "neg_iphone_bluetooth",
+      "category": "negative",
+      "answerable": false,
+      "query": "How do I pair Earkart hearing aids to iPhone over Bluetooth streaming?",
+      "content_patterns": []
+    },
+    {
+      "id": "neg_gst_rate",
+      "category": "negative",
+      "answerable": false,
+      "query": "What GST rate applies to hearing aids in the 2026 union budget?",
+      "content_patterns": []
+    },
+    {
+      "id": "neg_crm_password",
+      "category": "negative",
+      "answerable": false,
+      "query": "How can a patient reset a forgotten Earkart CRM password?",
+      "content_patterns": []
+    },
+    {
+      "id": "amb_fame_price",
+      "category": "ambiguous",
+      "answerable": true,
+      "pattern_mode": "any",
+      "query": "What is the MRP of FAME?",
+      "expected_page": 4,
+      "content_patterns": ["8,900", "9,900", "10,900", "11,900"]
+    },
+    {
+      "id": "amb_battery",
+      "category": "ambiguous",
+      "answerable": true,
+      "pattern_mode": "any",
+      "query": "What battery does the hearing aid use?",
+      "content_patterns": ["Zinc Air", "Lithium-ion", "675 No."]
+    },
+    {
+      "id": "amb_warranty",
+      "category": "ambiguous",
+      "answerable": true,
+      "query": "What is the warranty period for Earkart hearing aids?",
+      "content_patterns": ["2 Year"]
+    },
+    {
+      "id": "amb_severe_loss",
+      "category": "ambiguous",
+      "answerable": true,
+      "pattern_mode": "any",
+      "query": "Which hearing aid is for severe hearing loss?",
+      "content_patterns": ["Upto Severe", "Severe to Profound", "Severe Hearing Loss"]
+    },
+    {
+      "id": "amb_rechargeable",
+      "category": "ambiguous",
+      "answerable": true,
+      "pattern_mode": "any",
+      "query": "Which Earkart hearing aid is rechargeable?",
+      "content_patterns": ["Rechargeable CIC", "Lithium-ion", "Rechargeable Hearing Aid"]
+    },
+    {
+      "id": "term_cic",
+      "category": "terminology",
+      "answerable": true,
+      "query": "completely in canal rechargeable hearing aid TINY",
+      "expected_page": 3,
+      "content_patterns": ["TINY", "CIC"]
+    },
+    {
+      "id": "term_bte",
+      "category": "terminology",
+      "answerable": true,
+      "query": "Radius behind the ear digital programmable hearing aid",
+      "expected_page": 2,
+      "content_patterns": ["Radius BTE"]
+    },
+    {
+      "id": "term_oae",
+      "category": "terminology",
+      "answerable": true,
+      "query": "Does OMNI include otoacoustic emissions testing?",
+      "expected_page": 2,
+      "content_patterns": ["Otoacoustic Emissions"]
+    },
+    {
+      "id": "term_mrp_price",
+      "category": "terminology",
+      "answerable": true,
+      "query": "list price of Radius 16 hearing aid",
+      "expected_page": 3,
+      "content_patterns": ["Radius 16", "27,500"]
+    },
+    {
+      "id": "term_emi",
+      "category": "terminology",
+      "answerable": true,
+      "query": "Does Earkart offer interest-free EMI or no-cost installment for hearing aids?",
+      "expected_page": 2,
+      "content_patterns": ["0% No Cost EMI"]
+    }
+  ]
+}

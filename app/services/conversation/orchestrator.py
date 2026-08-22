@@ -1,0 +1,86 @@
+from __future__ import annotations
+
+import logging
+import time
+import uuid
+
+from app.services.conversation.models import ConversationState
+from app.interfaces.repositories.chat_trace_repository import ChatTraceRepository
+from app.interfaces.repositories.conversation_repository import ConversationRepository
+from app.helpers.conversation_trace import log_trace, snapshot_state
+
+logger = logging.getLogger(__name__)
+
+
+class ConversationOrchestrator:
+    def __init__(
+        self,
+        graph,
+        store: ConversationRepository,
+        traces: ChatTraceRepository | None = None,
+    ) -> None:
+        self._graph = graph
+        self._store = store
+        self._traces = traces
+
+    def handle(self, conversation_id: str | None, message: str) -> ConversationState:
+        cid = (conversation_id or "").strip() or str(uuid.uuid4())
+        state = self._store.get(cid) or ConversationState(conversation_id=cid)
+        state.conversation_id = cid
+        state.user_message = message
+        state.response = ""
+        state.sources = []
+        state.error = ""
+        state.guardrail_rejected = False
+        state.query_rewritten = ""
+        before = snapshot_state(state)
+        state.trace = {"state_before": before}
+        from app.config import settings
+        from app.services.diagnostics.recorder import TraceSession, tracing_enabled
+
+        session = TraceSession.start(state, message)
+        started = time.perf_counter()
+        try:
+            payload = self._graph.invoke(state.to_dict())
+            result = ConversationState.from_dict(payload)
+            result.trace = dict(result.trace or {})
+            result.trace["total_latency_ms"] = round((time.perf_counter() - started) * 1000, 3)
+            session.finish(result)
+            result.trace["trace_id"] = session.trace.trace_id
+            if tracing_enabled():
+                from app.services.diagnostics.report import write_chat_trace
+
+                write_chat_trace(session.trace)
+            if settings.chat_debug_console:
+                from app.services.diagnostics.console import print_chat_debug_console
+
+                print_chat_debug_console(session.trace)
+            self._persist_trace(session.trace)
+            log_trace(result)
+            self._store.save(result)
+            return result
+        except Exception as exc:
+            from app.services.diagnostics.recorder import record_error
+
+            record_error("graph", exc, recoverable=False, fallback_used=False)
+            session.trace.latency["total_ms"] = round((time.perf_counter() - started) * 1000, 3)
+            if tracing_enabled():
+                from app.services.diagnostics.report import write_chat_trace
+
+                write_chat_trace(session.trace)
+            if settings.chat_debug_console:
+                from app.services.diagnostics.console import print_chat_debug_console
+
+                print_chat_debug_console(session.trace)
+            self._persist_trace(session.trace)
+            raise
+        finally:
+            session.close()
+
+    def _persist_trace(self, trace) -> None:
+        if self._traces is None:
+            return
+        try:
+            self._traces.save(trace)
+        except Exception:
+            logger.exception("chat trace persist failed")

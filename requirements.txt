@@ -1,0 +1,30 @@
+# FastAPI chatbot dependencies
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+httpx>=0.27.0
+openai>=1.0.0
+litellm>=1.50.0
+pymupdf>=1.24.0
+pytest>=8.0.0
+
+# Phase 11 — embedding + PGVector
+transformers>=4.51.0
+torch>=2.2.0
+numpy>=1.26.0
+pgvector>=0.3.6
+sqlalchemy>=2.0.0
+psycopg[binary]>=3.1.0
+sentencepiece>=0.2.0
+openpyxl>=3.1.0
+python-docx>=1.1.0
+python-multipart>=0.0.9
+bcrypt>=4.0.0
+PyJWT>=2.8.0
+
+# Conversation orchestration (LangGraph) + RAG abstraction (LlamaIndex)
+# Do not add LangChain as an orchestration layer.
+langgraph>=0.2.0
+llama-index-core>=0.12.0

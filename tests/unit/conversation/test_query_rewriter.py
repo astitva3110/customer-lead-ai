@@ -1,0 +1,51 @@
+from app.services.conversation.models import ConversationState
+from app.services.conversation.query_rewriter import QueryRewriter, needs_rewrite, rewrite_query
+from app.helpers.query_normalize import canonicalize_knowledge_query
+
+
+def test_simple_query_does_not_rewrite() -> None:
+    state = ConversationState(user_message="What is TINY?", product="TINY")
+    QueryRewriter().apply(state)
+    assert state.query_rewritten == ""
+    assert not needs_rewrite(state.user_message, state.product)
+
+
+def test_contextual_query_rewrites_with_product() -> None:
+    rewritten = rewrite_query("What is its battery life?", "TINY")
+    assert rewritten == "What is the battery life of TINY?"
+    state = ConversationState(user_message="What is its battery life?", product="TINY")
+    QueryRewriter().apply(state)
+    assert state.query_rewritten == "What is the battery life of TINY?"
+
+
+def test_greeting_wrapper_becomes_what_is_topic() -> None:
+    assert canonicalize_knowledge_query("hi how are u ? i whant to know about CIC") == "What is CIC?"
+    assert canonicalize_knowledge_query("tell me about Earkart") == "What is Earkart?"
+    state = ConversationState(user_message="hi how are u ? i whant to know about CIC")
+    QueryRewriter().apply(state)
+    assert state.query_rewritten == "What is CIC?"
+
+
+def test_filler_prefix_is_stripped_without_inventing_a_topic() -> None:
+    state = ConversationState(user_message="ok what is tiny")
+    QueryRewriter().apply(state)
+    assert state.query_rewritten == "what is tiny"
+
+
+def test_attribute_query_binds_known_product() -> None:
+    state = ConversationState(user_message="what is the price?", product="TINY")
+    QueryRewriter().apply(state)
+    assert state.query_rewritten == "what is the price of TINY?"
+
+
+def test_buy_intent_is_not_turned_into_what_is() -> None:
+    state = ConversationState(user_message="I want to buy TINY.")
+    QueryRewriter().apply(state)
+    assert state.query_rewritten == ""
+
+
+def test_tell_me_about_topic_strips_conversational_tail() -> None:
+    assert canonicalize_knowledge_query("Actually, tell me about BTE first.") == "What is BTE?"
+    state = ConversationState(user_message="Actually, tell me about BTE first.", product="TINY")
+    QueryRewriter().apply(state)
+    assert state.query_rewritten == "What is BTE?"

@@ -1,0 +1,13 @@
+corpus_version: v2
+# POC cutover (not permanent): chat reads the isolated V3.2 table.
+# Revert vector_table + embedding_version to phase12 values to restore the live index.
+# embedding_version must match rows stored in that table or PGVector returns nothing.
+vector_table: chunk_embeddings_v3_2
+mode: pgvector
+embedding_model: Qwen/Qwen3-Embedding-0.6B
+embedding_model_revision: 69da0546e10ee869fbf19f3b1d6c5ac12eb48a16
+embedding_version: qwen_Qwen3-Embedding-0.6B_v1
+kb_dataset_version: phase12-v1
+chunking_algorithm_version: phase12.0
+embedding_input_manifest: phase12-v1
+top_k: 100
