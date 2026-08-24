@@ -3,7 +3,7 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
-from app.domain.entities import Lead, LeadRecordStatus, User
+from app.domain.entities import User
 from app.db.engine import get_session_factory
 from app.db.models import UserRow
 

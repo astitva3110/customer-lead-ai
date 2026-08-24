@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
 
+from app.helpers.workflow_resume import append_workflow_resume_after_knowledge, next_missing_lead_field
 from app.services.conversation.models import ConversationState
 from app.services.conversation.query_rewriter import QueryRewriter
 from app.services.diagnostics.recorder import current_trace, record_final_context, record_query, record_retrieval
@@ -11,9 +13,11 @@ from app.services.generation.models import INSUFFICIENT_INFORMATION_MESSAGE
 from app.interfaces.providers.knowledge import KnowledgeService
 from app.kb.evaluation.models import RankedHit
 
+logger = logging.getLogger(__name__)
+
 
 class KnowledgeFlow:
-    """Knowledge mode: optional rewrite → LlamaIndex RAG → existing generation guardrail."""
+    """Knowledge mode: optional rewrite → native hybrid RAG → existing generation guardrail."""
 
     def __init__(
         self,
@@ -38,14 +42,21 @@ class KnowledgeFlow:
         rewrite_started = time.perf_counter()
         original_query = state.user_message or ""
         self._rewriter.apply(state)
-        retrieval_query = state.query_rewritten or original_query
+        trace = dict(state.trace or {})
+        sub_questions = [str(item).strip() for item in (trace.get("sub_questions") or []) if str(item).strip()]
+        if not sub_questions:
+            sub_questions = [state.query_rewritten or original_query]
+        retrieval_queries = sub_questions
+        retrieval_query = retrieval_queries[0]
         rewrite_ms = round((time.perf_counter() - rewrite_started) * 1000, 3)
         state.trace["query_original"] = original_query
+        state.trace["resolved_query"] = retrieval_query
+        state.trace["sub_questions"] = retrieval_queries
         state.trace["query_rewrite_ms"] = rewrite_ms
         if current_trace():
             record_query(state, latency_ms=rewrite_ms)
         retrieval_started = time.perf_counter()
-        retrieval = self._knowledge.retrieve_knowledge(retrieval_query, context=state.to_dict())
+        chunks, retrieval = _retrieve_for_queries(self._knowledge, retrieval_queries, state)
         state.trace["retrieval_started"] = True
         state.trace["retrieval_used"] = True
         state.trace["retrieval_ms"] = round((time.perf_counter() - retrieval_started) * 1000, 3)
@@ -81,16 +92,37 @@ class KnowledgeFlow:
                     "final": [_chunk_preview(item) for item in chunks[:top_k]],
                 }
         hits = _hits_from_chunks(chunks)
+        next_missing = next_missing_lead_field(state)
+        logger.info(
+            "KNOWLEDGE -> RAG intent=%s conversation_goal=%s lead_collection_active=%s "
+            "awaiting_field=%s next_missing_field=%s next_action=%s",
+            state.intent,
+            state.conversation_goal,
+            state.lead_collection_active,
+            state.awaiting_field,
+            next_missing,
+            (state.trace or {}).get("next_action"),
+        )
         if not hits:
-            state.response = INSUFFICIENT_INFORMATION_MESSAGE
+            state.response = append_workflow_resume_after_knowledge(
+                state,
+                INSUFFICIENT_INFORMATION_MESSAGE,
+            )
             state.sources = []
             state.trace["model_used"] = ""
             state.trace["retrieval_used"] = False
             return state
         if current_trace():
             record_final_context(hits)
+        if (state.trace or {}).get("next_action") == "SALES_PITCH_AND_OFFER_CONTACT":
+            state.response = ""
+            state.sources = []
+            state.trace["needs_natural_reply"] = True
+            state.trace["sales_pitch_from_rag"] = True
+            return state
         generation_started = time.perf_counter()
         result = self._generation.generate(original_query, hits)
+        logger.info("RAG COMPLETE grounded=%s", bool(result.grounded))
         trace = current_trace()
         if trace and trace.generation:
             trace.generation["model"] = self._model_used
@@ -100,7 +132,17 @@ class KnowledgeFlow:
         state.trace["model_used"] = self._model_used
         state.trace["grounded"] = bool(result.grounded)
         state.trace["source_ids"] = list(result.source_ids)
-        state.response = result.answer
+        state.response = append_workflow_resume_after_knowledge(state, result.answer)
+        logger.info(
+            "FINAL RESPONSE PATH intent=%s lead_collection_active=%s awaiting_field=%s "
+            "next_missing_field=%s lead_resume_appended=%s response_chars=%s",
+            state.intent,
+            state.lead_collection_active,
+            state.awaiting_field,
+            (state.trace or {}).get("next_missing_field"),
+            (state.trace or {}).get("lead_resume_appended"),
+            len(state.response or ""),
+        )
         if not result.grounded:
             state.sources = []
             return state
@@ -116,6 +158,32 @@ class KnowledgeFlow:
             if source_id in by_id
         ]
         return state
+
+
+def _retrieve_for_queries(
+    knowledge: KnowledgeService,
+    queries: list[str],
+    state: ConversationState,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    merged: dict[str, dict[str, Any]] = {}
+    last_result: dict[str, Any] = {}
+    for query in queries:
+        result = knowledge.retrieve_knowledge(query, context=state.to_dict())
+        last_result = result
+        for chunk in result.get("chunks") or []:
+            chunk_id = str(chunk.get("chunk_id") or "")
+            if not chunk_id:
+                continue
+            score = float(chunk.get("score") or 0.0)
+            existing = merged.get(chunk_id)
+            if existing is None or score > float(existing.get("score") or 0.0):
+                merged[chunk_id] = dict(chunk)
+    chunks = sorted(merged.values(), key=lambda item: float(item.get("score") or 0.0), reverse=True)
+    if last_result:
+        last_result = dict(last_result)
+        last_result["chunks"] = chunks
+        last_result["query"] = queries[0] if queries else last_result.get("query", "")
+    return chunks, last_result
 
 
 def _chunk_preview(item: dict[str, Any]) -> dict[str, Any]:

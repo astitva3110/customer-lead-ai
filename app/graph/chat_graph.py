@@ -31,6 +31,9 @@ class GraphState(TypedDict, total=False):
     support_workflow: str
     lead_intent: bool
     support_intent: bool
+    sales_interest: bool
+    lead_stage: str
+    lead_collection_active: bool
     explicit_action: str
     user_context: dict[str, Any]
     product: str
@@ -38,7 +41,11 @@ class GraphState(TypedDict, total=False):
     user_name: str
     phone: str
     country: str
+    phone_country: str
     city: str
+    city_country: str
+    session_country: str
+    pending_phone: str
     support_issue: str
     retrieved_context: list[dict[str, Any]]
     retrieved_chunk_ids: list[str]
@@ -146,6 +153,9 @@ def build_chat_graph(
         return "reply"
 
     def after_knowledge(payload: GraphState) -> str:
+        trace = payload.get("trace") or {}
+        if trace.get("needs_natural_reply") and not str(payload.get("response") or "").strip():
+            return "reply"
         return "restore_mode" if payload.get("return_mode") else "finish"
 
     def after_business(payload: GraphState) -> str:
@@ -177,7 +187,7 @@ def build_chat_graph(
     builder.add_conditional_edges(
         "knowledge",
         after_knowledge,
-        {"restore_mode": "restore_mode", "finish": "finish"},
+        {"restore_mode": "restore_mode", "finish": "finish", "reply": "reply"},
     )
     builder.add_edge("restore_mode", "finish")
     builder.add_conditional_edges(

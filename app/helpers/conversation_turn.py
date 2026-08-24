@@ -20,7 +20,11 @@ GREETING_SMALLTALK_RE = re.compile(
     re.IGNORECASE,
 )
 SHORT_YES_RE = re.compile(
-    r"^(yes|yeah|yep|yup|sure|ok|okay|please|y)[.!\s]*$",
+    r"^(yes|yeah|yep|yup|sure|ok|okay|please|y|haan|acha)[.!\s]*$",
+    re.IGNORECASE,
+)
+ACK_ONLY_RE = re.compile(
+    r"^(ok|okay|hmm|hm|acha|right|fine|thanks|thank you|got it)[.!\s]*$",
     re.IGNORECASE,
 )
 MORE_INFO_RE = re.compile(
@@ -77,6 +81,10 @@ def has_greeting_prefix(message: str) -> bool:
 
 def is_short_yes(message: str) -> bool:
     return bool(SHORT_YES_RE.match((message or "").strip()))
+
+
+def is_acknowledgement_only(message: str) -> bool:
+    return bool(ACK_ONLY_RE.match((message or "").strip()))
 
 
 def wants_more_product_info(message: str) -> bool:

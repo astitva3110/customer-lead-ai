@@ -69,6 +69,12 @@ class TicketStatus(StrEnum):
     FAILED = "FAILED"
 
 
+class LeadStage(StrEnum):
+    NOT_STARTED = "NOT_STARTED"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETED = "COMPLETED"
+
+
 @dataclass
 class ConversationState:
     conversation_id: str = ""
@@ -84,6 +90,9 @@ class ConversationState:
     support_workflow: str = SupportWorkflow.NONE
     lead_intent: bool = False
     support_intent: bool = False
+    sales_interest: bool = False
+    lead_stage: str = LeadStage.NOT_STARTED
+    lead_collection_active: bool = False
     explicit_action: str = ""
     user_context: dict[str, Any] = field(default_factory=dict)
 
@@ -93,7 +102,11 @@ class ConversationState:
     user_name: str = ""
     phone: str = ""
     country: str = ""
+    phone_country: str = ""
     city: str = ""
+    city_country: str = "IN"
+    session_country: str = ""
+    pending_phone: str = ""
 
     support_issue: str = ""
 
@@ -126,6 +139,9 @@ class ConversationState:
             "support_workflow": self.support_workflow,
             "lead_intent": self.lead_intent,
             "support_intent": self.support_intent,
+            "sales_interest": self.sales_interest,
+            "lead_stage": self.lead_stage,
+            "lead_collection_active": self.lead_collection_active,
             "explicit_action": self.explicit_action,
             "user_context": dict(self.user_context),
             "product": self.product,
@@ -133,7 +149,11 @@ class ConversationState:
             "user_name": self.user_name,
             "phone": self.phone,
             "country": self.country,
+            "phone_country": self.phone_country,
             "city": self.city,
+            "city_country": self.city_country,
+            "session_country": self.session_country,
+            "pending_phone": self.pending_phone,
             "support_issue": self.support_issue,
             "retrieved_context": list(self.retrieved_context),
             "retrieved_chunk_ids": list(self.retrieved_chunk_ids),

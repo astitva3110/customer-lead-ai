@@ -1,10 +1,13 @@
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 
 from app.services.conversation.orchestrator import ConversationOrchestrator
 from app.services.diagnostics.recorder import tracing_enabled
 from app.services.chat_history import ChatHistoryService
 from app.helpers.chat_history import conversation_brief_payload, conversation_detail_payload
-from app.dependencies import get_chat_history_service, get_current_user, get_orchestrator, require_role
+from app.dependencies import get_chat_history_service, get_orchestrator, require_role
 from app.domain.entities import User, UserRole
 from app.schemas import (
     ChatConversationSummary,
@@ -16,15 +19,26 @@ from app.schemas import (
 )
 
 router = APIRouter(tags=["chat"])
+_CHAT_HTML = Path(__file__).resolve().parents[1] / "static" / "chat.html"
+
+
+@router.get("/chat", include_in_schema=False)
+def chat_page() -> FileResponse:
+    return FileResponse(_CHAT_HTML, media_type="text/html")
+
+
+@router.get("/", include_in_schema=False)
+def root_redirect():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/chat")
 
 
 @router.post("/chat", response_model=ChatResponse, response_model_exclude_none=True)
 def chat(
     request: ChatRequest,
-    _current_user: User = Depends(get_current_user),
     orchestrator: ConversationOrchestrator = Depends(get_orchestrator),
 ) -> ChatResponse:
-    result = orchestrator.handle(request.conversation_id, request.message)
+    result = orchestrator.handle(request.conversation_id, request.message, country=request.country)
     payload: dict = {
         "conversation_id": result.conversation_id,
         "mode": result.mode or "KNOWLEDGE",

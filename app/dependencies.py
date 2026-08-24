@@ -56,7 +56,7 @@ def get_orchestrator() -> ConversationOrchestrator:
     from app.graph.factory import build_conversation_orchestrator
     from app.kb.evaluation.retrieval_config import RetrievalConfig
     from app.kb.retrieval.service import RetrievalService
-    from app.providers.knowledge.knowledge_service import LlamaIndexKnowledgeService
+    from app.providers.knowledge.hybrid_knowledge_service import HybridKnowledgeService
     from app.providers.retrieval.factory import build_knowledge_hybrid_retriever
     from app.repositories.conversation import InMemoryConversationRepository
     from app.repositories.lead import PostgresLeadRepository
@@ -66,7 +66,7 @@ def get_orchestrator() -> ConversationOrchestrator:
         config = RetrievalConfig.from_yaml(_RETRIEVAL_CONFIG)
         vector_service = RetrievalService.from_config(config)
         hybrid = build_knowledge_hybrid_retriever(config, vector_service=vector_service)
-        knowledge = LlamaIndexKnowledgeService(
+        knowledge = HybridKnowledgeService(
             hybrid,
             retrieval_version=config.embedding_version,
         )
@@ -124,11 +124,25 @@ def get_user_admin_service():
 @lru_cache
 def get_lead_admin_service():
     from app.db.engine import ensure_schema, get_session_factory
+    from app.repositories.chat_trace import PostgresChatTraceRepository
     from app.repositories.lead import PostgresLeadRepository
-    from app.services.lead_admin_service import LeadAdminService
+    from app.services.engagement_admin_service import LeadAdminService
 
     ensure_schema()
-    return LeadAdminService(PostgresLeadRepository(get_session_factory()))
+    sessions = get_session_factory()
+    return LeadAdminService(PostgresLeadRepository(sessions), PostgresChatTraceRepository(sessions))
+
+
+@lru_cache
+def get_support_admin_service():
+    from app.db.engine import ensure_schema, get_session_factory
+    from app.repositories.chat_trace import PostgresChatTraceRepository
+    from app.repositories.ticket import PostgresTicketRepository
+    from app.services.engagement_admin_service import SupportAdminService
+
+    ensure_schema()
+    sessions = get_session_factory()
+    return SupportAdminService(PostgresTicketRepository(sessions), PostgresChatTraceRepository(sessions))
 
 
 def get_current_user(

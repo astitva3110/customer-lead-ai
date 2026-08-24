@@ -4,6 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class ChatRequest(BaseModel):
     conversation_id: str | None = None
     message: str = Field(min_length=1, max_length=4000)
+    country: str | None = None
     top_k: int = Field(default=5, ge=1, le=20)
 
 
@@ -147,20 +148,55 @@ class UserRoleUpdateRequest(BaseModel):
 
 
 class LeadSummary(BaseModel):
-    lead_id: str
+    id: str
     name: str
     phone: str
     city: str
-    country: str
     product: str
-    conversation_id: str
     status: str
     created_at: str | None = None
+    updated_at: str | None = None
+
+
+class ConversationMessage(BaseModel):
+    role: str
+    content: str
+    created_at: str | None = None
+
+
+class LeadDetail(LeadSummary):
+    country: str
+    conversation_id: str
+    conversation: list[ConversationMessage] = Field(default_factory=list)
 
 
 class LeadListResponse(BaseModel):
     items: list[LeadSummary]
 
 
-class LeadStatusUpdateRequest(BaseModel):
+class LeadUpdateRequest(BaseModel):
+    status: str
+
+
+class SupportSummary(BaseModel):
+    id: str
+    name: str
+    phone: str
+    product: str
+    issue: str
+    status: str
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+class SupportDetail(SupportSummary):
+    conversation_id: str
+    conversation: list[ConversationMessage] = Field(default_factory=list)
+
+
+class SupportListResponse(BaseModel):
+    items: list[SupportSummary]
+
+
+class SupportUpdateRequest(BaseModel):
     status: str

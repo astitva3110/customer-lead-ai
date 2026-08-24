@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from app.services.conversation.phone import parse_phone
+from app.helpers.phone import extract_and_validate_phone
 from app.services.conversation.query_rewriter import extract_product
 
 _NAME_RE = re.compile(
@@ -10,7 +10,6 @@ _NAME_RE = re.compile(
     re.IGNORECASE,
 )
 _CITY_RE = re.compile(r"\b(?:from|in)\s+([A-Z][a-zA-Z]{2,40})\b")
-_PHONE_SPAN = re.compile(r"(\+?\d[\d\s\-()]{7,}\d)")
 _NAME_BLOCK = frozenset(
     {
         "interested",
@@ -60,15 +59,18 @@ _ISSUE_HINTS = (
 )
 
 
-def extract_phone_from_text(message: str) -> tuple[str, str] | None:
-    parsed = parse_phone(message)
-    if parsed:
-        return parsed
-    for match in _PHONE_SPAN.finditer(message or ""):
-        parsed = parse_phone(match.group(0))
-        if parsed:
-            return parsed
-    return None
+def extract_phone_from_text(message: str, default_region: str | None = None) -> tuple[str, str] | None:
+    result = extract_and_validate_phone(message, default_region)
+    if not result.valid:
+        return None
+    return result.e164, result.country
+
+
+def normalize_person_name(raw: str) -> str:
+    name = (raw or "").strip()
+    if not name:
+        return ""
+    return name.title() if name.islower() else name
 
 
 def extract_name(message: str) -> str:
@@ -80,7 +82,7 @@ def extract_name(message: str) -> str:
         return ""
     if extract_product(name):
         return ""
-    return name.title() if name.islower() else name
+    return normalize_person_name(name)
 
 
 def extract_city(message: str) -> str:
@@ -114,6 +116,11 @@ CONTACT_PATTERNS = (
     r"get in touch",
     r"sales team",
     r"connect me",
+    r"let'?s proceed",
+    r"\bgo ahead\b",
+    r"yes,?\s*connect",
+    r"please have someone call",
+    r"want someone from sales",
 )
 TICKET_REQUEST_PATTERNS = (
     r"create a (?:support )?ticket",

@@ -13,7 +13,10 @@ from app.db.migrations import run_migrations
 
 @lru_cache
 def get_engine() -> Engine:
-    return create_engine(settings.database_url, connect_args={"connect_timeout": 5})
+    url = (settings.database_url or "").strip()
+    if not url:
+        raise RuntimeError("DATABASE_URL is not set. Add it to your .env file.")
+    return create_engine(url, connect_args={"connect_timeout": 5})
 
 
 @lru_cache

@@ -23,6 +23,7 @@ python-docx>=1.1.0
 python-multipart>=0.0.9
 bcrypt>=4.0.0
 PyJWT>=2.8.0
+phonenumbers>=8.13.0
 
 # Conversation orchestration (LangGraph) + RAG abstraction (LlamaIndex)
 # Do not add LangChain as an orchestration layer.

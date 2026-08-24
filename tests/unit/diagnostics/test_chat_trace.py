@@ -328,16 +328,13 @@ def test_debug_trace_id_only_when_enabled(monkeypatch, tmp_path: Path) -> None:
 
     from app.main import app
     from app.dependencies import get_orchestrator
-    from tests.unit.auth.helpers import as_user, make_user
 
     _enable(monkeypatch, tmp_path)
-    user, _password = make_user()
     orchestrator, *_ = make_orchestrator()
     app.dependency_overrides[get_orchestrator] = lambda: orchestrator
     try:
-        with as_user(user):
-            client = TestClient(app)
-            response = client.post("/chat", json={"message": "What is TINY?"})
+        client = TestClient(app)
+        response = client.post("/chat", json={"message": "What is TINY?"})
         assert response.status_code == 200
         payload = response.json()
         assert payload["debug_trace_id"]

@@ -55,13 +55,17 @@ class TraceSession:
         }
         trace.state_before = {
             "conversation_goal": str(state.conversation_goal or ""),
+            "conversation_status": _conversation_status(state),
             "current_turn_intent": str(state.current_turn_intent or ""),
+            "current_status": str(state.current_turn_intent or ""),
             "current_product": state.product or None,
+            "lead_stage": str(state.lead_stage or ""),
             "user_context_keys": sorted((state.user_context or {}).keys()),
             "lead_workflow": str(state.lead_workflow or ""),
             "support_workflow": str(state.support_workflow or ""),
             "awaiting_field": state.awaiting_field or None,
             "previous_assistant_message": _preview(_previous_assistant_message(state)),
+            "history_turn_count": len(state.conversation_history or []),
         }
         token = _current.set(trace)
         return cls(trace, token)
@@ -78,9 +82,20 @@ class TraceSession:
         }
         self.trace.state_after = {
             "conversation_goal": str(state.conversation_goal or ""),
+            "conversation_status": _conversation_status(state),
             "current_turn_intent": str(state.current_turn_intent or ""),
+            "current_status": flags.get("current_status") or str(state.current_turn_intent or ""),
             "current_product": state.product or None,
-            "lead_status": str(state.lead_status or ""),
+            "active_product": flags.get("active_product") or state.product or None,
+            "diverge": flags.get("diverge"),
+            "sub_questions": flags.get("sub_questions") or [],
+            "lead_stage": str(state.lead_stage or flags.get("lead_stage") or ""),
+            "lead_status": str(state.lead_stage or flags.get("lead_status") or ""),
+            "lead_collection_active": bool(getattr(state, "lead_collection_active", False)),
+        "next_action": flags.get("next_action"),
+            "resolved_query": flags.get("resolved_query"),
+            "history_turn_count": len(state.conversation_history or []),
+            "lead_status_db": str(state.lead_status or ""),
             "support_status": str(state.ticket_status or ""),
             "lead_state": str(state.lead_workflow or ""),
             "support_state": str(state.support_workflow or ""),
@@ -467,6 +482,15 @@ def _split_knowledge_context(user_prompt: str) -> tuple[str, str]:
         knowledge, remainder = after.split(question, 1)
         return knowledge.strip(), f"{question}{remainder}".strip()
     return after.strip(), ""
+
+
+def _conversation_status(state: Any) -> str:
+    goal = str(getattr(state, "conversation_goal", "") or "")
+    if goal in {"LEAD", "SALES"}:
+        return "SALE"
+    if goal == "SUPPORT":
+        return "SUPPORT"
+    return "NONE"
 
 
 def _previous_assistant_message(state: Any) -> str:

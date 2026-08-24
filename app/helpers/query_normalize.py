@@ -53,7 +53,9 @@ KNOWLEDGE_PATTERNS = (
     r"tell(?:\s+me)?(?:\s+more)?\s+about",
     r"(?:can|could|would)\s+you\s+(?:please\s+)?(?:tell|explain)",
     r"\bexplain\b",
-    r"\bdescribe\b",
+    r"\bdetails?\b",
+    r"\binformation\b",
+    r"\bbluetooth\b",
 )
 
 

@@ -14,11 +14,13 @@ class UserRole(StrEnum):
     SUPER_ADMIN = "super_admin"
 
 
-class LeadRecordStatus(StrEnum):
-    NEW = "new"
-    CONTACTED = "contacted"
-    QUALIFIED = "qualified"
+class RecordStatus(StrEnum):
+    OPEN = "open"
     CLOSED = "closed"
+
+
+# Backward-compatible alias for existing imports during migration.
+LeadRecordStatus = RecordStatus
 
 
 @dataclass
@@ -41,8 +43,9 @@ class Lead:
     product: str
     conversation_id: str
     lead_id: str = field(default_factory=lambda: str(uuid4()))
-    status: LeadRecordStatus = LeadRecordStatus.NEW
+    status: RecordStatus = RecordStatus.OPEN
     created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 @dataclass
@@ -53,6 +56,9 @@ class SupportTicket:
     issue: str
     conversation_id: str
     ticket_id: str = field(default_factory=lambda: str(uuid4()))
+    status: RecordStatus = RecordStatus.OPEN
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 @dataclass

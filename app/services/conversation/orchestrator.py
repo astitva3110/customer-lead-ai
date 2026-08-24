@@ -23,11 +23,24 @@ class ConversationOrchestrator:
         self._store = store
         self._traces = traces
 
-    def handle(self, conversation_id: str | None, message: str) -> ConversationState:
+    def handle(
+        self,
+        conversation_id: str | None,
+        message: str,
+        country: str | None = None,
+    ) -> ConversationState:
         cid = (conversation_id or "").strip() or str(uuid.uuid4())
         state = self._store.get(cid) or ConversationState(conversation_id=cid)
         state.conversation_id = cid
         state.user_message = message
+        from app.config import settings
+        from app.helpers.phone import normalize_region
+
+        region = normalize_region(country) or normalize_region(state.session_country) or normalize_region(
+            settings.default_country
+        )
+        if region:
+            state.session_country = region
         state.response = ""
         state.sources = []
         state.error = ""
@@ -35,7 +48,6 @@ class ConversationOrchestrator:
         state.query_rewritten = ""
         before = snapshot_state(state)
         state.trace = {"state_before": before}
-        from app.config import settings
         from app.services.diagnostics.recorder import TraceSession, tracing_enabled
 
         session = TraceSession.start(state, message)

@@ -9,10 +9,10 @@ from app.domain.entities import SupportTicket
 from app.helpers.conversation_extract import (
     extract_issue,
     extract_name,
-    extract_phone_from_text,
     looks_like_issue,
 )
 from app.helpers.conversation_reply import ticket_created_reply
+from app.helpers.phone import ingest_phone_message, looks_like_phone_attempt, phone_validation_reply
 
 TICKET_CREATED_MESSAGE = ticket_created_reply()
 
@@ -26,9 +26,18 @@ def prompt_for_support_field(field: str, *, name: str = "") -> str:
         if name:
             return f"Thanks, {name}. What's the best number for our support team to reach you on?"
         return "What's the best number for our support team to reach you on?"
+    if field == "phone_country":
+        return "Which country is this number from?"
     if field == "issue":
         return "Tell me a little about what's happening, and I'll see how I can help."
     return ""
+
+
+def prompt_for_missing_support_field(state: ConversationState, field: str) -> str:
+    validation = (state.trace or {}).get("phone_validation") or {}
+    if field in {"phone", "phone_country"} and validation.get("valid") is False:
+        return phone_validation_reply(validation)
+    return prompt_for_support_field(field, name=state.user_name)
 
 
 class SupportService:
@@ -51,7 +60,7 @@ class SupportService:
         if missing:
             state.ticket_status = TicketStatus.COLLECTING
             state.awaiting_field = missing
-            state.response = prompt_for_support_field(missing, name=state.user_name)
+            state.response = prompt_for_missing_support_field(state, missing)
             return state
         try:
             ticket_id = self._tool.create_support_ticket(_ticket_from_state(state))
@@ -77,7 +86,7 @@ class SupportService:
         if collect and missing:
             state.ticket_status = TicketStatus.COLLECTING
             state.awaiting_field = missing
-            state.response = prompt_for_support_field(missing, name=state.user_name)
+            state.response = prompt_for_missing_support_field(state, missing)
             state.trace["ask_missing"] = True
             _add_capability(state, "SUPPORT_INFORMATION_COLLECTION")
             return state
@@ -132,9 +141,11 @@ class SupportService:
 
     def _ingest_fields(self, state: ConversationState) -> None:
         message = (state.user_message or "").strip()
-        parsed = extract_phone_from_text(message)
-        if parsed and not state.phone:
-            state.phone, state.country = parsed
+        phone_result = ingest_phone_message(state, message)
+        if phone_result is not None:
+            state.trace = dict(state.trace or {})
+            state.trace["phone_validation"] = phone_result.to_dict()
+        phone_only = bool(phone_result is not None and looks_like_phone_attempt(message))
         name = extract_name(message)
         if name and not state.user_name:
             state.user_name = name
@@ -143,7 +154,7 @@ class SupportService:
             if named:
                 state.product = named
         field = state.awaiting_field
-        if field == "name" and not state.user_name and message and not parsed:
+        if field == "name" and not state.user_name and message and not phone_only:
             if not extract_product(message) and not looks_like_issue(message):
                 state.user_name = message
         elif field == "product" and message:
@@ -157,6 +168,8 @@ class SupportService:
         if not state.product:
             return "product"
         if not state.phone:
+            if state.pending_phone or state.awaiting_field == "phone_country":
+                return "phone_country"
             return "phone"
         if not state.support_issue:
             return "issue"
@@ -170,6 +183,7 @@ class SupportService:
             "name": SupportWorkflow.COLLECTING_NAME,
             "product": SupportWorkflow.COLLECTING_PRODUCT,
             "phone": SupportWorkflow.COLLECTING_PHONE,
+            "phone_country": SupportWorkflow.COLLECTING_PHONE,
             "issue": SupportWorkflow.COLLECTING_ISSUE,
             "": SupportWorkflow.READY_TO_CREATE,
         }

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from app.services.conversation.models import ConversationState
+from app.services.conversation.models import ConversationGoal, ConversationState
 from app.helpers.query_normalize import canonicalize_knowledge_query
 from app.helpers.conversation_turn import wants_more_product_info
 
@@ -43,7 +43,20 @@ def apply_named_product(state: ConversationState) -> None:
     if re.search(r"\bdifference\b|\bcompare\b|\bvs\.?\b", message, flags=re.IGNORECASE):
         return
     named = extract_product(message)
-    if named:
+    if not named:
+        return
+    if state.lead_collection_active and state.awaiting_field:
+        return
+    explicit_switch = bool(
+        re.search(
+            r"\b(?:actually|instead|changed my mind|rather|i want|i'll buy|i will buy|buy|purchase|better|mean)\b",
+            message,
+            flags=re.IGNORECASE,
+        )
+    )
+    if not state.product or explicit_switch:
+        state.product = named
+    elif state.conversation_goal == ConversationGoal.SUPPORT and named:
         state.product = named
 
 
@@ -74,6 +87,17 @@ def rewrite_query(message: str, product: str) -> str:
 class QueryRewriter:
     def apply(self, state: ConversationState) -> ConversationState:
         original = (state.user_message or "").strip()
+        trace = state.trace or {}
+        resolved = str(trace.get("resolved_query") or "").strip()
+        if resolved and resolved.lower() != original.lower():
+            state.query_rewritten = resolved
+            return state
+        sub_questions = trace.get("sub_questions") or []
+        if sub_questions:
+            first = str(sub_questions[0]).strip()
+            if first and first.lower() != original.lower():
+                state.query_rewritten = first
+                return state
         prepared = confirmation_knowledge_query(state) or canonicalize_knowledge_query(original)
         if needs_rewrite(prepared, state.product):
             prepared = rewrite_query(prepared, state.product)

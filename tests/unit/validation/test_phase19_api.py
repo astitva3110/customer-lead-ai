@@ -7,18 +7,15 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.dependencies import get_orchestrator
 from tests.unit.conversation.fakes import FakeKnowledge
-from tests.unit.auth.helpers import as_user, make_user
 from tests.validation.harness import make_graph_stack
 
 
 @contextmanager
 def _client():
-    user, _password = make_user()
     orchestrator, *_ = make_graph_stack(knowledge=FakeKnowledge())
     app.dependency_overrides[get_orchestrator] = lambda: orchestrator
     try:
-        with as_user(user):
-            yield TestClient(app), orchestrator
+        yield TestClient(app), orchestrator
     finally:
         app.dependency_overrides.clear()
 

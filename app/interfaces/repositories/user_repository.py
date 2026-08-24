@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from app.domain.entities import Lead, LeadRecordStatus, User, UserRole
+from app.domain.entities import Lead, RecordStatus, SupportTicket, User, UserRole
 
 
 class UserRepository(Protocol):
@@ -24,4 +24,4 @@ class LeadRepository(Protocol):
 
     def get_lead(self, lead_id: str) -> Lead | None: ...
 
-    def update_lead_status(self, lead_id: str, status: LeadRecordStatus) -> Lead | None: ...
+    def update_lead_status(self, lead_id: str, status: RecordStatus) -> Lead | None: ...

@@ -12,7 +12,7 @@ from app.domain.entities import (
     ChatTurn,
     ChatTurnLatency,
     Lead,
-    LeadRecordStatus,
+    RecordStatus,
     RetrievalLayerHit,
     SupportTicket,
     User,
@@ -38,8 +38,9 @@ class LeadRow(AppBase):
     country: Mapped[str] = mapped_column(Text, nullable=False)
     product: Mapped[str] = mapped_column(Text, nullable=False)
     conversation_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
-    status: Mapped[str] = mapped_column(String(32), nullable=False, default=LeadRecordStatus.NEW.value)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default=RecordStatus.OPEN.value)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
 
     def to_entity(self) -> Lead:
         return Lead(
@@ -50,8 +51,9 @@ class LeadRow(AppBase):
             country=self.country,
             product=self.product,
             conversation_id=self.conversation_id,
-            status=LeadRecordStatus(self.status),
+            status=RecordStatus(self.status),
             created_at=self.created_at,
+            updated_at=self.updated_at,
         )
 
     @classmethod
@@ -112,7 +114,9 @@ class SupportTicketRow(AppBase):
     product: Mapped[str] = mapped_column(Text, nullable=False)
     issue: Mapped[str] = mapped_column(Text, nullable=False)
     conversation_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default=RecordStatus.OPEN.value)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
 
     def to_entity(self) -> SupportTicket:
         return SupportTicket(
@@ -122,6 +126,9 @@ class SupportTicketRow(AppBase):
             product=self.product,
             issue=self.issue,
             conversation_id=self.conversation_id,
+            status=RecordStatus(self.status),
+            created_at=self.created_at,
+            updated_at=self.updated_at,
         )
 
     @classmethod
@@ -133,6 +140,7 @@ class SupportTicketRow(AppBase):
             product=ticket.product,
             issue=ticket.issue,
             conversation_id=ticket.conversation_id,
+            status=ticket.status.value,
         )
 
 

@@ -55,6 +55,42 @@ def test_no_langchain_orchestration_in_app() -> None:
         assert "import langchain" not in text
 
 
+def test_native_hybrid_knowledge_service_normalizes_hybrid_output() -> None:
+    class _Retriever:
+        def __init__(self, items: list[RetrievalCandidate]) -> None:
+            self.items = items
+
+        def retrieve(self, query: str, *, top_k: int, document_id: str | None = None):
+            del query, document_id
+            return self.items[:top_k]
+
+    hybrid = HybridRetriever(
+        _Retriever(
+            [RetrievalCandidate(chunk_id="c1", document_id="d1", text="TINY is compact.", vector_score=0.9)]
+        ),
+        _Retriever(
+            [RetrievalCandidate(chunk_id="c1", document_id="d1", text="TINY is compact.", keyword_score=0.8)]
+        ),
+        PassthroughReranker(),
+        vector_k=20,
+        keyword_k=20,
+        final_k=6,
+    )
+    from app.providers.knowledge.hybrid_knowledge_service import HybridKnowledgeService
+
+    service = HybridKnowledgeService(hybrid, retrieval_version="v2")
+    result = service.retrieve_knowledge("What is TINY?")
+    assert result["query"] == "What is TINY?"
+    assert result["retrieval_version"] == "v2"
+    assert result["backend"] == "native-hybrid"
+    assert result["chunks"][0]["chunk_id"] == "c1"
+    assert result["chunks"][0]["text"]
+    assert result["retrieval_preview"]["vector"]
+    assert result["timings"]
+    assert "scores" in result
+    assert "metadata" in result
+
+
 def test_llamaindex_knowledge_service_normalizes_hybrid_output() -> None:
     class _Retriever:
         def __init__(self, items: list[RetrievalCandidate]) -> None:

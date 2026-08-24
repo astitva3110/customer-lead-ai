@@ -1,30 +1,70 @@
 from __future__ import annotations
 
+import logging
 import time
 
+from app.domain.entities import Lead
+from app.helpers.conversation_extract import extract_city, extract_name, normalize_person_name
+from app.helpers.conversation_reply import lead_created_reply
+from app.helpers.conversation_turn import is_acknowledgement_only
+from app.helpers.phone import (
+    CITY_COUNTRY_INDIA,
+    PhoneValidationResult,
+    ingest_phone_message,
+    looks_like_phone_attempt,
+    phone_validation_reply,
+)
+from app.interfaces.providers.business import LeadTool
 from app.services.conversation.models import ConversationState, LeadStatus, LeadWorkflow
 from app.services.conversation.query_rewriter import apply_named_product, extract_product
-from app.interfaces.providers.business import LeadTool
-from app.domain.entities import Lead
-from app.helpers.conversation_extract import extract_city, extract_name, extract_phone_from_text
-from app.helpers.conversation_reply import lead_created_reply
+
+logger = logging.getLogger(__name__)
 
 LEAD_CREATED_MESSAGE = lead_created_reply()
 
 
-def prompt_for_lead_field(field: str, *, name: str = "") -> str:
+def prompt_for_lead_field(
+    field: str,
+    *,
+    name: str = "",
+    product: str = "",
+    after_knowledge: bool = False,
+) -> str:
+    display_name = normalize_person_name(name)
+    if after_knowledge:
+        return _knowledge_lead_continuation(field, product=product)
     if field == "phone":
-        if name:
-            return f"Absolutely, {name}. What's the best number for our team to reach you on?"
-        return "What's the best number for our team to reach you on?"
+        if display_name:
+            return f"Thanks, {display_name}. What's the best number to reach you on?"
+        return "What's the best number to reach you on?"
     if field == "name":
-        return "May I have your name?"
+        return "I'll help you get connected. What name should our team use when they contact you?"
     if field == "city":
-        if name:
-            return f"Thanks, {name}. Which city should I note for the team?"
-        return "Which city should I note for the team?"
+        return "Thanks! Which city should I note for the team?"
+    if field == "phone_country":
+        return "Which country is this number from?"
     if field == "product":
         return "Which product are you interested in?"
+    return ""
+
+
+def prompt_for_missing_lead_field(state: ConversationState, field: str) -> str:
+    validation = (state.trace or {}).get("phone_validation") or {}
+    if field in {"phone", "phone_country"} and validation.get("valid") is False:
+        return phone_validation_reply(validation)
+    return prompt_for_lead_field(field, name=state.user_name)
+
+
+def _knowledge_lead_continuation(field: str, *, product: str = "") -> str:
+    topic = (product or "").strip() or "this"
+    if field == "phone":
+        return f"If you'd like help with {topic}, what's the best number to reach you on?"
+    if field == "name":
+        return f"If you'd like help with {topic}, what name should our team use?"
+    if field == "city":
+        return f"If you'd like help with {topic}, which city should I note for the team?"
+    if field == "phone_country":
+        return "Which country is this number from?"
     return ""
 
 
@@ -39,12 +79,15 @@ class LeadService:
             return state
         apply_named_product(state)
         self._ingest_fields(state)
+        if _is_phone_retry(state):
+            return self._retry_phone(state)
         missing = self._next_missing(state)
         self._sync_workflow(state, missing)
+        _log_lead_completion(state, missing)
         if missing:
             state.lead_status = LeadStatus.COLLECTING
             state.awaiting_field = missing
-            state.response = prompt_for_lead_field(missing, name=state.user_name)
+            state.response = prompt_for_missing_lead_field(state, missing)
             return state
         try:
             lead_id = self._tool.create_lead(_lead_from_state(state))
@@ -65,12 +108,26 @@ class LeadService:
             state.response = lead_created_reply(state.user_name)
             state.lead_workflow = LeadWorkflow.CREATED
             return state
+        if (
+            is_acknowledgement_only(state.user_message or "")
+            and state.awaiting_field
+            and state.lead_collection_active
+        ):
+            state.lead_status = LeadStatus.COLLECTING
+            state.response = ""
+            state.trace["needs_natural_reply"] = True
+            state.trace["acknowledgement_only"] = True
+            return state
         missing = self._prepare(state)
+        _log_lead_completion(state, missing)
+        if _is_phone_retry(state):
+            return self._retry_phone(state)
         collect = self._should_collect(state, missing)
         if collect and missing:
+            state.lead_collection_active = True
             state.lead_status = LeadStatus.COLLECTING
             state.awaiting_field = missing
-            state.response = prompt_for_lead_field(missing, name=state.user_name)
+            state.response = prompt_for_missing_lead_field(state, missing)
             state.trace["ask_missing"] = True
             _add_capability(state, "LEAD_INFORMATION_COLLECTION")
             return state
@@ -114,31 +171,82 @@ class LeadService:
             return True
         if state.awaiting_field:
             return True
+        if state.lead_collection_active:
+            return True
         return False
 
     def _ingest_fields(self, state: ConversationState) -> None:
         message = (state.user_message or "").strip()
-        parsed = extract_phone_from_text(message)
-        if parsed and not state.phone:
-            state.phone, state.country = parsed
+        previous_field = state.awaiting_field or self._next_missing(state)
+        awaiting_phone = previous_field in {"phone", "phone_country"} and not state.phone
+        parsed_phone = self._ingest_phone(state, message, previous_field, awaiting_phone)
+        if _is_phone_retry(state):
+            return
         name = extract_name(message)
         if name and not state.user_name:
             state.user_name = name
         city = extract_city(message)
         if city and not state.city:
             state.city = city
+            state.city_country = CITY_COUNTRY_INDIA
         field = state.awaiting_field
-        if field == "name" and not state.user_name and message and not parsed:
-            if not extract_product(message):
-                state.user_name = message
-        elif field == "city" and not state.city and message and not parsed:
-            state.city = message
+        if field == "name" and not state.user_name and message and not parsed_phone:
+            if not looks_like_phone_attempt(message) and not extract_product(message):
+                state.user_name = normalize_person_name(message)
+        elif field == "city" and not state.city and message and not parsed_phone:
+            if not looks_like_phone_attempt(message):
+                state.city = message.strip()
+                state.city_country = CITY_COUNTRY_INDIA
         elif field == "product" and message:
             state.product = extract_product(message) or state.product or message
+        logger.info(
+            "CITY_INGEST %s",
+            {
+                "raw_input": message,
+                "extract_city": city,
+                "awaiting_field": field,
+                "parsed_phone_this_turn": parsed_phone,
+                "city_set": bool(state.city),
+                "city": state.city,
+            },
+        )
+
+    def _ingest_phone(
+        self,
+        state: ConversationState,
+        message: str,
+        previous_field: str,
+        awaiting_phone: bool,
+    ) -> bool:
+        result = ingest_phone_message(state, message)
+        should_check = awaiting_phone or looks_like_phone_attempt(message)
+        if result is None:
+            return False
+        if result.valid:
+            next_field = "name" if not state.user_name else ("city" if not state.city else "")
+            if should_check:
+                _record_phone_validation(state, message, result, previous_field, next_field)
+            return True
+        if awaiting_phone and looks_like_phone_attempt(message):
+            _mark_phone_retry(state, result)
+            _record_phone_validation(state, message, result, previous_field, "phone")
+        return False
+
+    def _retry_phone(self, state: ConversationState) -> ConversationState:
+        validation = (state.trace or {}).get("phone_validation") or {}
+        state.lead_collection_active = True
+        state.lead_status = LeadStatus.COLLECTING
+        state.awaiting_field = "phone"
+        state.lead_workflow = LeadWorkflow.COLLECTING_PHONE
+        state.response = phone_validation_reply(validation)
+        _add_capability(state, "LEAD_INFORMATION_COLLECTION")
+        return state
 
     def _next_missing(self, state: ConversationState) -> str:
+        if state.awaiting_field == "phone_country" and not state.phone:
+            return "phone_country"
         if state.awaiting_field == "phone" and not state.phone:
-            return "phone"
+            return "phone_country" if state.pending_phone else "phone"
         if state.awaiting_field == "name" and not state.user_name:
             return "name"
         if state.awaiting_field == "city" and not state.city:
@@ -146,7 +254,7 @@ class LeadService:
         if not state.user_name:
             return "name"
         if not state.phone:
-            return "phone"
+            return "phone_country" if state.pending_phone else "phone"
         if not state.city:
             return "city"
         return ""
@@ -157,6 +265,7 @@ class LeadService:
             return
         mapping = {
             "phone": LeadWorkflow.COLLECTING_PHONE,
+            "phone_country": LeadWorkflow.COLLECTING_PHONE,
             "name": LeadWorkflow.COLLECTING_NAME,
             "city": LeadWorkflow.COLLECTING_CITY,
             "": LeadWorkflow.READY_TO_CREATE,
@@ -167,12 +276,77 @@ class LeadService:
         return prompt_for_lead_field(field, name=name)
 
 
+def _log_lead_completion(state: ConversationState, missing: str) -> None:
+    missing_fields = [
+        field
+        for field, value in (("name", state.user_name), ("phone", state.phone), ("city", state.city))
+        if not value
+    ]
+    payload = {
+        "name": state.user_name or None,
+        "phone": bool(state.phone),
+        "city": state.city or None,
+        "missing_fields": missing_fields,
+        "next_missing_field": missing or None,
+        "awaiting_field": state.awaiting_field or None,
+        "will_create_lead": not missing,
+    }
+    logger.info("LEAD_MISSING %s", payload)
+    state.trace = dict(state.trace or {})
+    state.trace["lead_missing"] = payload
+
+
+def _is_phone_retry(state: ConversationState) -> bool:
+    return (state.trace or {}).get("next_action") == "RETRY_PHONE"
+
+
+def _mark_phone_retry(state: ConversationState, result: PhoneValidationResult) -> None:
+    state.trace = dict(state.trace or {})
+    state.trace["next_action"] = "RETRY_PHONE"
+    state.trace["validation_reason"] = result.reason
+    state.trace["phone_retry"] = True
+
+
+def _record_phone_validation(
+    state: ConversationState,
+    raw_input: str,
+    result: PhoneValidationResult,
+    previous_state: str,
+    next_state: str,
+) -> None:
+    payload = result.to_dict()
+    payload.update(
+        {
+            "field": "phone",
+            "raw_input": raw_input,
+            "previous_state": previous_state,
+            "next_state": next_state,
+            "validation_reason": result.reason,
+        }
+    )
+    logger.info("PHONE_INPUT %s", payload)
+    if result.valid:
+        logger.info(
+            "PHONE_VALIDATION %s",
+            {"valid": True, "normalized": result.normalized_value, "next_field": next_state},
+        )
+    else:
+        logger.info(
+            "PHONE_VALIDATION %s",
+            {"valid": False, "reason": result.reason, "next_field": next_state},
+        )
+    state.trace = dict(state.trace or {})
+    state.trace["phone_validation"] = payload
+    state.trace["validation_reason"] = result.reason
+
+
 def _lead_from_state(state: ConversationState) -> Lead:
+    state.city_country = state.city_country or CITY_COUNTRY_INDIA
     return Lead(
         name=state.user_name,
         phone=state.phone,
         city=state.city,
-        country=state.country,
+        country=state.phone_country or state.country,
         product=state.product,
         conversation_id=state.conversation_id,
     )
@@ -183,6 +357,7 @@ def _mark_lead_created(state: ConversationState, lead_id: str) -> None:
     state.trace["tool_called"] = "create_lead"
     state.trace["should_create_lead"] = True
     state.trace["lead_id"] = lead_id
+    logger.info("CREATE_LEAD %s", {"called": True, "lead_id": lead_id, "city": state.city})
 
 
 def _add_capability(state: ConversationState, capability: str) -> None:

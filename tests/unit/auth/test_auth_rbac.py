@@ -7,7 +7,7 @@ import jwt
 from fastapi.testclient import TestClient
 
 from app.config import settings
-from app.domain.entities import Lead, LeadRecordStatus, UserRole
+from app.domain.entities import Lead, RecordStatus, UserRole
 from app.helpers.jwt_tokens import create_access_token
 from app.main import app
 from app.repositories.memory_user import InMemoryUserRepository
@@ -136,34 +136,42 @@ def test_admin_can_view_leads(monkeypatch) -> None:
         country="IN",
         product="TINY",
         conversation_id="conv-1",
-        status=LeadRecordStatus.NEW,
+        status=RecordStatus.OPEN,
     )
 
     class FakeLeadRepo:
-        def list_leads(self, *, limit: int, offset: int) -> list[Lead]:
+        def list_leads(self, *, limit: int, offset: int, status: RecordStatus | None = None):
+            del limit, offset, status
             return [lead]
 
         def get_lead(self, lead_id: str) -> Lead | None:
             return lead if lead_id == lead.lead_id else None
 
-        def update_lead_status(self, lead_id: str, status: LeadRecordStatus) -> Lead | None:
+        def update_lead_status(self, lead_id: str, status: RecordStatus) -> Lead | None:
             if lead_id != lead.lead_id:
                 return None
             lead.status = status
             return lead
 
-    from app.dependencies import get_lead_admin_service
-    from app.services.lead_admin_service import LeadAdminService
+    class FakeTraceRepo:
+        def get_conversation(self, conversation_id: str):
+            del conversation_id
+            return None
 
-    app.dependency_overrides[get_lead_admin_service] = lambda: LeadAdminService(FakeLeadRepo())  # type: ignore[arg-type]
+    from app.dependencies import get_lead_admin_service
+    from app.services.engagement_admin_service import LeadAdminService
+
+    app.dependency_overrides[get_lead_admin_service] = lambda: LeadAdminService(
+        FakeLeadRepo(), FakeTraceRepo()
+    )
     try:
         with user_repo([admin]), as_user(admin):
             client = TestClient(app)
             assert client.get("/leads").status_code == 200
             assert client.get(f"/leads/{lead.lead_id}").status_code == 200
-            patch = client.patch(f"/leads/{lead.lead_id}/status", json={"status": "contacted"})
+            patch = client.patch(f"/leads/{lead.lead_id}", json={"status": "closed"})
             assert patch.status_code == 200
-            assert patch.json()["status"] == "contacted"
+            assert patch.json()["status"] == "closed"
     finally:
         app.dependency_overrides.pop(get_lead_admin_service, None)
 

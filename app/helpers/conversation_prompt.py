@@ -5,6 +5,7 @@ import re
 
 from app.services.conversation.models import ConversationGoal, ConversationState, TurnIntent
 from app.helpers.conversation_reply import conversational_fallback
+from app.helpers.conversation_history import DEFAULT_MESSAGE_CHARS, compact_recent_history
 from app.helpers.conversation_turn import is_greeting_only, last_assistant_text
 
 PHONE_RE = re.compile(r"(\+?\d[\d\s\-()]{7,}\d)")
@@ -48,8 +49,33 @@ def redact_phone(text: str) -> str:
     return PHONE_RE.sub("[phone]", text or "")
 
 
+def _rag_snippets(state: ConversationState) -> list[str]:
+    snippets: list[str] = []
+    for chunk in (state.retrieved_context or [])[:3]:
+        text = str(chunk.get("text") or "").strip()
+        if text:
+            snippets.append(text[:220])
+    return snippets
+
+
 def _situation(state: ConversationState) -> str:
     trace = state.trace or {}
+    if trace.get("sales_pitch_from_rag") or trace.get("next_action") == "SALES_PITCH_AND_OFFER_CONTACT":
+        product = state.product or "the product"
+        snippets = _rag_snippets(state)
+        context = " | ".join(snippets) if snippets else "No grounded product context available."
+        return (
+            f"The user wants to buy {product}. Use ONLY these grounded product facts: {context}. "
+            "Acknowledge the purchase intent warmly, mention one to three supported benefits from that context, "
+            "and naturally offer to connect them with the sales team. "
+            "Do not ask for name, phone, or city."
+        )
+    if trace.get("acknowledgement_only") and state.awaiting_field:
+        return (
+            "The user acknowledged your previous message with a brief reply such as ok or thanks. "
+            "Respond with a short, natural acknowledgement. "
+            "Do not re-ask for contact details you already requested."
+        )
     capabilities = trace.get("capabilities") or []
     collecting_lead = "LEAD_INFORMATION_COLLECTION" in capabilities or "CREATE_LEAD" in capabilities
     collecting_support = (
@@ -63,6 +89,16 @@ def _situation(state: ConversationState) -> str:
                 f"{missing[0]}. Do not mention other details or remaining steps."
             )
         return "The user asked to be contacted. You already have the details you need."
+    if (state.trace or {}).get("resume_lead_after_knowledge") and state.conversation_goal in {
+        ConversationGoal.LEAD,
+        ConversationGoal.SALES,
+    }:
+        missing = _missing_contact_labels(state)
+        if missing:
+            return (
+                "After answering the knowledge question, naturally resume contact collection. "
+                f"Ask only for their {missing[0]} when appropriate. Do not sound like a form."
+            )
     if collecting_support:
         missing = _missing_support_labels(state)
         if missing:
@@ -123,7 +159,7 @@ def _missing_contact_labels(state: ConversationState) -> list[str]:
     if not state.user_name:
         missing.append("name")
     if not state.city:
-        missing.append("city")
+        missing.append("city in India")
     return missing
 
 
@@ -141,14 +177,7 @@ def _missing_support_labels(state: ConversationState) -> list[str]:
 
 
 def build_conversation_user_prompt(state: ConversationState) -> str:
-    history = []
-    for item in (state.conversation_history or [])[-6:]:
-        history.append(
-            {
-                "role": item.get("role") or "",
-                "content": redact_phone((item.get("content") or "")[:400]),
-            }
-        )
+    history = compact_recent_history(state.conversation_history, max_chars=DEFAULT_MESSAGE_CHARS)
     tool = (state.trace or {}).get("tool_called") or ""
     tool_result = ""
     if tool == "create_lead" and not state.error:
@@ -166,8 +195,11 @@ def build_conversation_user_prompt(state: ConversationState) -> str:
         "issue_known": bool(state.support_issue),
         "user_context": state.user_context or {},
         "tool_result": tool_result,
-        "last_assistant": redact_phone(last_assistant_text(state))[:400],
-        "recent_history": history,
+        "last_assistant": redact_phone(last_assistant_text(state))[:DEFAULT_MESSAGE_CHARS],
+        "recent_history": [
+            {"role": item["role"], "content": redact_phone(item["content"])}
+            for item in history
+        ],
         "current_message": redact_phone(state.user_message or ""),
     }
     if state.user_name:
