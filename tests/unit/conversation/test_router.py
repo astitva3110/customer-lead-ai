@@ -92,3 +92,45 @@ def test_greeting_plus_product_question_retrieves() -> None:
     routed = ChatRouter().route(ConversationState(user_message="Hi, I want to know about Bluup."))
     assert routed.trace.get("should_retrieve") is True
     assert routed.current_turn_intent == "KNOWLEDGE"
+
+
+def test_casual_thanks_and_pleasantries_are_general() -> None:
+    router = ChatRouter()
+    for message in ("thanks", "thank you so much", "bye", "have a good day"):
+        routed = router.route(ConversationState(user_message=message, mode=ChatMode.KNOWLEDGE))
+        assert routed.current_turn_intent == "GENERAL", message
+        assert routed.trace.get("should_retrieve") is False, message
+
+
+def test_factual_questions_route_to_knowledge_not_general() -> None:
+    router = ChatRouter()
+    for message in (
+        "Who is the CEO of Earkart?",
+        "Who founded Earkart?",
+        "What is the return policy?",
+        "What is your privacy policy?",
+        "Is TINY waterproof?",
+        "Does Earkart have a warranty on TINY?",
+        "How much does TINY cost?",
+        "Where is Earkart based?",
+    ):
+        routed = router.route(ConversationState(user_message=message, mode=ChatMode.KNOWLEDGE))
+        assert routed.current_turn_intent == "KNOWLEDGE", message
+        assert routed.mode == ChatMode.KNOWLEDGE, message
+        assert routed.trace.get("should_retrieve") is True, message
+
+
+def test_person_question_during_lead_uses_rag_and_keeps_goal() -> None:
+    routed = ChatRouter().route(
+        ConversationState(
+            user_message="Who is the founder?",
+            mode=ChatMode.LEAD,
+            conversation_goal=ConversationGoal.LEAD,
+            product="TINY",
+            lead_intent=True,
+        )
+    )
+    assert routed.current_turn_intent == "KNOWLEDGE"
+    assert routed.trace.get("should_retrieve") is True
+    assert routed.conversation_goal == ConversationGoal.LEAD
+    assert routed.return_mode == ChatMode.LEAD

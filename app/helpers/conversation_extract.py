@@ -53,6 +53,16 @@ _ISSUE_HINTS = (
     "very low",
     "sound is low",
     "too quiet",
+    "not powering",
+    "no power",
+    "won't turn on",
+    "wont turn on",
+    "not turning on",
+    "doesn't turn on",
+    "doesnt turn on",
+    "won't charge",
+    "not charging",
+    "no sound",
     "issue",
     "problem",
     "troubleshoot",
@@ -141,6 +151,10 @@ SUPPORT_CONTACT_PATTERNS = (
     rf"want to (?:talk|speak|contact)(?: to)? (?:your )?{_SUPPORT_TARGET}",
     rf"need to (?:talk|speak)(?: to)? (?:your )?{_SUPPORT_TARGET}",
     rf"(?:talk|speak) (?:to )?(?:your )?{_SUPPORT_TARGET}",
+    rf"make contact (?:to|with) (?:your |the )?{_SUPPORT_TARGET}",
+    rf"(?:contact|contect) (?:to |with )?(?:your |the )?{_SUPPORT_TARGET}",
+    rf"(?:contact|contect) me (?:to|with) (?:your |the )?{_SUPPORT_TARGET}",
+    rf"connect (?:me )?(?:to|with) (?:your |the )?{_SUPPORT_TARGET}",
 )
 # repair, repir, reapir, and similar typos
 _REPAIR_WORD = r"re(?:p(?:ai?r|a?ir)|apir)"

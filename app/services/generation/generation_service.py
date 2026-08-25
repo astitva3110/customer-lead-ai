@@ -4,8 +4,8 @@ import logging
 import time
 from typing import Any
 
-from app.services.conversation.models import ConversationState
-from app.services.generation.models import GenerationResult, ungrounded_fallback
+from app.services.conversation.models import ConversationState, TurnIntent
+from app.services.generation.models import GenerationResult, INSUFFICIENT_INFORMATION_MESSAGE, ungrounded_fallback
 from app.interfaces.providers.llm import LLMProvider
 from app.helpers.conversation_prompt import (
     CONVERSATION_SYSTEM_PROMPT,
@@ -13,10 +13,11 @@ from app.helpers.conversation_prompt import (
     parse_conversation_answer,
 )
 from app.helpers.conversation_reply import conversational_fallback, repeats_recent_assistant
-from app.helpers.conversation_turn import has_greeting_prefix, last_assistant_text
+from app.helpers.conversation_turn import has_greeting_prefix, is_casual_conversation, last_assistant_text
 from app.helpers.generation_json import extract_json_object
 from app.helpers.generation_prompt import GENERATION_SYSTEM_PROMPT, build_generation_user_prompt
 from app.helpers.generation_validate import explain_generation_payload, validate_generation_payload
+from app.helpers.query_normalize import looks_like_informational_question
 from app.services.diagnostics.recorder import current_trace, record_error, record_generation, record_grounding
 
 logger = logging.getLogger(__name__)
@@ -136,6 +137,9 @@ class GenerationService:
     def converse(self, state: ConversationState) -> ConversationState:
         if (state.response or "").strip():
             return state
+        if _refuse_ungrounded_factual_question(state):
+            state.response = INSUFFICIENT_INFORMATION_MESSAGE
+            return state
         fallback = conversational_fallback(state)
         if not self._llm.is_configured:
             state.response = fallback
@@ -202,3 +206,15 @@ class GenerationService:
 def _claims_success(answer: str) -> bool:
     lowered = (answer or "").lower()
     return any(token in lowered for token in _CREATED_CLAIM)
+
+
+def _refuse_ungrounded_factual_question(state: ConversationState) -> bool:
+    message = state.user_message or ""
+    if is_casual_conversation(message):
+        return False
+    if state.retrieved_context:
+        return False
+    if not looks_like_informational_question(message):
+        return False
+    intent = state.current_turn_intent or ""
+    return intent in {TurnIntent.KNOWLEDGE, TurnIntent.GENERAL, TurnIntent.UNKNOWN, ""}

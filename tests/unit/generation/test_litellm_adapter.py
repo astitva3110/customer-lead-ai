@@ -65,3 +65,40 @@ def test_openai_api_settings_use_same_adapter(monkeypatch) -> None:
     assert calls[0]["temperature"] == 0.2
     assert calls[0]["max_tokens"] == 256
     assert calls[0]["timeout"] == 30.0
+
+
+def test_litellm_adapter_records_token_usage(monkeypatch) -> None:
+    def fake_completion(**kwargs):
+        del kwargs
+        message = SimpleNamespace(content="ok")
+        choice = SimpleNamespace(message=message)
+        usage = SimpleNamespace(prompt_tokens=11, completion_tokens=7, total_tokens=18)
+        return SimpleNamespace(choices=[choice], usage=usage)
+
+    monkeypatch.setitem(sys.modules, "litellm", SimpleNamespace(completion=fake_completion))
+    from app.services.diagnostics.recorder import TraceSession
+
+    settings = Settings(generation_model="openai/gpt-4o-mini", generation_api_key="sk-test")
+    state = type(
+        "State",
+        (),
+        {
+            "conversation_id": "c1",
+            "conversation_goal": "",
+            "current_turn_intent": "",
+            "lead_stage": "",
+            "user_context": {},
+            "lead_workflow": "",
+            "support_workflow": "",
+            "awaiting_field": "",
+            "conversation_history": [],
+            "product": "",
+        },
+    )()
+    session = TraceSession.start(state, "hello")
+    try:
+        LiteLLMProvider(settings).complete("sys", "user")
+    finally:
+        session.close()
+    assert session.trace.observability["token_usage"]["input_tokens"] == 11
+    assert session.trace.observability["token_usage"]["output_tokens"] == 7

@@ -27,6 +27,21 @@ ACK_ONLY_RE = re.compile(
     r"^(ok|okay|hmm|hm|acha|right|fine|thanks|thank you|got it)[.!\s]*$",
     re.IGNORECASE,
 )
+PLEASANTRY_ONLY_RE = re.compile(
+    r"^(?:"
+    r"thanks(?:\s+(?:a\s+lot|so\s+much|very\s+much))?|"
+    r"thank\s+you(?:\s+(?:so\s+much|very\s+much|a\s+lot))?|"
+    r"thx|ty|cheers|"
+    r"much\s+appreciated|appreciate\s+it|"
+    r"you(?:'re| are)\s+welcome|"
+    r"no\s+problem|np|"
+    r"bye|goodbye|good\s+bye|see\s+you(?:\s+later)?|take\s+care|"
+    r"have\s+a\s+(?:nice|good|great)\s+day|"
+    r"nice\s+(?:to\s+)?(?:meet|talking\s+to)\s+you|"
+    r"sounds\s+good|gotcha|cool|great|awesome|perfect|lovely"
+    r")[.!\s]*$",
+    re.IGNORECASE,
+)
 MORE_INFO_RE = re.compile(
     r"^(?:yes please|yeah please|yes plz|yeah plz|yes pls|yeah pls|tell me more|more please|go ahead|"
     r"sure tell me|yes tell me)[.!\s]*$",
@@ -41,6 +56,11 @@ OFFERED_INFO_RE = re.compile(
 OFFERED_CALLBACK_RE = re.compile(
     r"arrange a callback|call you|contact you|callback\?|someone (?:to )?call|"
     r"sales team|connect you",
+    re.IGNORECASE,
+)
+OFFERED_SUPPORT_RE = re.compile(
+    r"support team|customer service|connect (?:you )?(?:with|to) (?:our |the )?support|"
+    r"further assistance",
     re.IGNORECASE,
 )
 PHONE_REFUSAL_RE = re.compile(
@@ -97,6 +117,14 @@ def is_acknowledgement_only(message: str) -> bool:
     return bool(ACK_ONLY_RE.match((message or "").strip()))
 
 
+def is_casual_conversation(message: str) -> bool:
+    """Greetings, thanks, acknowledgements, small talk, and pleasantries only."""
+    text = (message or "").strip()
+    if not text:
+        return False
+    return is_greeting_only(text) or is_acknowledgement_only(text) or bool(PLEASANTRY_ONLY_RE.match(text))
+
+
 def wants_more_product_info(message: str) -> bool:
     text = (message or "").strip()
     return is_short_yes(text) or is_tell_more(text)
@@ -116,6 +144,10 @@ def offered_product_information(assistant_text: str) -> bool:
 
 def offered_callback(assistant_text: str) -> bool:
     return bool(OFFERED_CALLBACK_RE.search(assistant_text or ""))
+
+
+def offered_support_help(assistant_text: str) -> bool:
+    return bool(OFFERED_SUPPORT_RE.search(assistant_text or ""))
 
 
 def is_phone_refusal(message: str) -> bool:

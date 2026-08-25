@@ -4,6 +4,7 @@ from fastapi import FastAPI
 
 from app.error_handlers import register_error_handlers
 from app.routers import auth, chat, customer_service, health, knowledge, leads, users
+from app.services.diagnostics.langsmith_tracing import configure_langsmith
 
 logging.basicConfig(
     level=logging.INFO,
@@ -17,6 +18,7 @@ app = FastAPI(
 )
 
 register_error_handlers(app)
+configure_langsmith()
 
 app.include_router(health.router)
 app.include_router(auth.router)

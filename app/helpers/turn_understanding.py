@@ -30,6 +30,9 @@ TURN_UNDERSTANDING_SYSTEM = (
     "user_context_updates (object of short string facts the USER volunteered), "
     "explicit_action (create_lead|create_ticket|null), confidence (0-1). "
     "User facts are conversation context, never company knowledge. "
+    "GENERAL is only for greetings, thanks, acknowledgements, small talk, and conversational pleasantries. "
+    "Factual, informational, product, company, policy, warranty, pricing, or person-related questions "
+    "are KNOWLEDGE with needs_rag=true. Never answer those from general knowledge. "
     "Informational purchase questions (why buy, benefits, price, warranty) are KNOWLEDGE not LEAD. "
     "Actionable purchase/contact intent is LEAD. Product problems are SUPPORT."
 )

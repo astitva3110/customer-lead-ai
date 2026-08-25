@@ -1,4 +1,6 @@
 from app.config import Settings
+from app.services.diagnostics.langsmith_tracing import add_token_usage, usage_payload
+from app.services.diagnostics.recorder import current_trace
 
 
 class LiteLLMProvider:
@@ -57,5 +59,19 @@ class LiteLLMProvider:
             if extra_body:
                 kwargs["extra_body"] = extra_body
         response = litellm.completion(**kwargs)
+        trace = current_trace()
+        if trace is not None:
+            usage = usage_payload(getattr(response, "usage", None))
+            add_token_usage(trace, usage)
+            generation = dict(trace.generation or {})
+            if usage.get("input_tokens") is not None:
+                generation["input_token_count"] = int(
+                    (generation.get("input_token_count") or 0) + usage["input_tokens"]
+                )
+            if usage.get("output_tokens") is not None:
+                generation["output_token_count"] = int(
+                    (generation.get("output_token_count") or 0) + usage["output_tokens"]
+                )
+            trace.generation = generation
         content = response.choices[0].message.content
         return content or ""

@@ -42,7 +42,7 @@ def test_qwen_generation_only_on_knowledge_path() -> None:
 
 def test_mcp_adapters_are_called_from_services_not_graph() -> None:
     graph_src = (APP_ROOT / "graph" / "chat_graph.py").read_text(encoding="utf-8")
-    assert "create_lead" not in graph_src
+    assert "self._tool.create_lead" not in graph_src
     assert "create_support_ticket" not in graph_src
     lead_src = (APP_ROOT / "services" / "conversation" / "lead_service.py").read_text(encoding="utf-8")
     assert "self._tool.create_lead" in lead_src

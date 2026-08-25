@@ -22,6 +22,7 @@ class ChatTrace:
     latency: dict[str, Any] = field(default_factory=dict)
     errors: list[dict[str, Any]] = field(default_factory=list)
     llamaindex: dict[str, Any] = field(default_factory=dict)
+    observability: dict[str, Any] = field(default_factory=dict)
 
     @property
     def trace_id(self) -> str:

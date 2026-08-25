@@ -233,3 +233,17 @@ def test_converse_does_not_repeat_last_assistant() -> None:
     assert result.response != repeated
     assert "would you like to know anything about tiny before" not in result.response.lower()
 
+
+def test_converse_refuses_ungrounded_factual_questions() -> None:
+    from app.services.conversation.models import ConversationState, TurnIntent
+
+    llm = _RecordingLLM(json.dumps({"answer": "The CEO is a well-known industry leader."}))
+    service = GenerationService(llm, conversation_temperature=0.4)
+    state = ConversationState(
+        user_message="Who is the CEO of Earkart?",
+        current_turn_intent=TurnIntent.GENERAL,
+    )
+    result = service.converse(state)
+    assert llm.call_count == 0
+    assert result.response == INSUFFICIENT_INFORMATION_MESSAGE
+

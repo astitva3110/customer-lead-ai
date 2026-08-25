@@ -309,8 +309,8 @@ def test_noisy_query_is_prepared_for_retrieval(monkeypatch, tmp_path: Path) -> N
     result = orchestrator.handle("diag-noisy", "ok what is tiny")
     payload = load_chat_trace(result.trace["trace_id"], tmp_path)
     assert payload["query"]["rewrite_executed"] is True
-    assert payload["query"]["rewritten_query"] == "what is tiny"
-    assert knowledge.queries[-1] == "what is tiny"
+    assert payload["query"]["rewritten_query"] == "what is TINY"
+    assert knowledge.queries[-1] == "what is TINY"
 
 
 def test_enabled_does_not_add_retrieval_or_llm_calls(monkeypatch, tmp_path: Path) -> None:

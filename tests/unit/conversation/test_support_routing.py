@@ -21,6 +21,8 @@ def test_support_contact_phrases_detected() -> None:
     assert looks_like_support_contact_request("i want to talk to your customer support")
     assert looks_like_support_contact_request("i want to contact your customer service")
     assert looks_like_support_contact_request("i need to talk your support team")
+    assert looks_like_support_contact_request("i want to make contact to your service")
+    assert looks_like_support_contact_request("yes contect me to the support team")
     assert not looks_like_support_contact_request("I want to buy TINY.")
 
 
@@ -273,3 +275,93 @@ def test_trace_regression_hearing_not_working_conversation() -> None:
     assert fifth.conversation_goal == ConversationGoal.SUPPORT
     assert fifth.current_turn_intent == TurnIntent.CONFIRMATION
     assert fifth.trace.get("should_retrieve") is not True
+
+
+def test_issue_followup_stays_support_not_general() -> None:
+    router = ChatRouter()
+    routed = router.route(
+        ConversationState(
+            user_message="it is not powering on",
+            product="TINY",
+            conversation_goal=ConversationGoal.SUPPORT,
+            mode=ChatMode.SUPPORT,
+            support_issue="i have TINY that is not working",
+            support_intent=True,
+        )
+    )
+    assert routed.current_turn_intent == TurnIntent.SUPPORT_INTENT
+    assert routed.mode == ChatMode.SUPPORT
+    assert routed.conversation_goal == ConversationGoal.SUPPORT
+    assert routed.trace.get("should_retrieve") is not True
+    assert "powering" in (routed.support_issue or "").lower()
+
+
+def test_contact_service_during_support_starts_ticket_not_lead() -> None:
+    router = ChatRouter()
+    routed = router.route(
+        ConversationState(
+            user_message="it is not powering of i want to make contact to your service",
+            product="TINY",
+            conversation_goal=ConversationGoal.SUPPORT,
+            mode=ChatMode.SUPPORT,
+            support_issue="it is not working",
+            support_intent=True,
+        )
+    )
+    assert routed.explicit_action == "create_ticket"
+    assert routed.mode == ChatMode.SUPPORT
+    assert routed.conversation_goal == ConversationGoal.SUPPORT
+    assert routed.current_turn_intent != TurnIntent.LEAD_INTENT
+    assert routed.current_turn_intent != TurnIntent.KNOWLEDGE
+    assert routed.trace.get("should_retrieve") is not True
+
+
+def test_yes_after_support_offer_collects_ticket_not_rag() -> None:
+    router = ChatRouter()
+    routed = router.route(
+        ConversationState(
+            user_message="yes",
+            product="TINY",
+            conversation_goal=ConversationGoal.SUPPORT,
+            mode=ChatMode.SUPPORT,
+            support_issue="not powering on",
+            support_intent=True,
+            conversation_history=[
+                {"role": "user", "content": "i want to make contact to your service"},
+                {
+                    "role": "assistant",
+                    "content": "Let me know if you'd like to connect with our support team for further assistance.",
+                },
+            ],
+        )
+    )
+    assert routed.explicit_action == "create_ticket"
+    assert routed.current_turn_intent == TurnIntent.CONFIRMATION
+    assert routed.trace.get("should_retrieve") is not True
+    assert routed.conversation_goal == ConversationGoal.SUPPORT
+
+
+def test_support_device_then_contact_service_collects_ticket() -> None:
+    orchestrator, knowledge, *_ = make_orchestrator(knowledge=FakeKnowledge())
+    cid = "support-service-contact"
+    first = orchestrator.handle(cid, "i have tinny that is not working")
+    assert first.conversation_goal == ConversationGoal.SUPPORT
+    assert first.product == "TINY"
+    assert not knowledge.queries
+
+    detail = orchestrator.handle(cid, "it is not powering on")
+    assert detail.conversation_goal == ConversationGoal.SUPPORT
+    assert detail.current_turn_intent == TurnIntent.SUPPORT_INTENT
+    assert "powering" in (detail.support_issue or "").lower()
+    assert not knowledge.queries
+    assert "not powering on" not in (detail.response or "").lower() or "describe the issue more specifically" not in (
+        detail.response or ""
+    ).lower()
+
+    contact = orchestrator.handle(cid, "it is not powering of i want to make contact to your service")
+    assert contact.conversation_goal == ConversationGoal.SUPPORT
+    assert contact.explicit_action == "create_ticket"
+    assert contact.ticket_status == TicketStatus.COLLECTING
+    assert contact.awaiting_field in {"name", "phone", "product", "issue"}
+    assert knowledge.queries == []
+    assert contact.current_turn_intent != TurnIntent.LEAD_INTENT

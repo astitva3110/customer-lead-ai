@@ -220,8 +220,9 @@ def record_query(state: Any, *, latency_ms: float) -> None:
     original = state.user_message or ""
     rewritten = state.query_rewritten or ""
     prepared = diagnostic_normalized_query(original)
-    reason = None
-    if rewritten:
+    rewrite_meta = dict((getattr(state, "trace", None) or {}).get("query_rewrite") or {})
+    reason = rewrite_meta.get("reason")
+    if rewritten and not reason:
         reason = "pronoun_product" if rewritten != prepared else "conversational_normalize"
     trace.query = {
         "original_user_query": redact_text(original),
@@ -230,6 +231,8 @@ def record_query(state: Any, *, latency_ms: float) -> None:
         "rewrite_executed": bool(rewritten),
         "rewrite_reason": reason,
         "rewrite_latency_ms": round(latency_ms, 3),
+        "confidence": rewrite_meta.get("confidence"),
+        "entities": list(rewrite_meta.get("entities") or []),
     }
 
 

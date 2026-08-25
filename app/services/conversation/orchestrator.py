@@ -53,12 +53,19 @@ class ConversationOrchestrator:
         session = TraceSession.start(state, message)
         started = time.perf_counter()
         try:
-            payload = self._graph.invoke(state.to_dict())
+            payload = self._invoke_graph(state)
             result = ConversationState.from_dict(payload)
             result.trace = dict(result.trace or {})
             result.trace["total_latency_ms"] = round((time.perf_counter() - started) * 1000, 3)
             session.finish(result)
             result.trace["trace_id"] = session.trace.trace_id
+            observability = dict(getattr(session.trace, "observability", None) or {})
+            if observability:
+                result.trace["observability"] = {
+                    "trace_id": session.trace.trace_id,
+                    "langsmith_run_id": observability.get("langsmith_run_id"),
+                    "token_usage": observability.get("token_usage"),
+                }
             if tracing_enabled():
                 from app.services.diagnostics.report import write_chat_trace
 
@@ -88,6 +95,24 @@ class ConversationOrchestrator:
             raise
         finally:
             session.close()
+
+    def _invoke_graph(self, state: ConversationState) -> dict:
+        from app.services.diagnostics.langsmith_tracing import langsmith_enabled
+
+        payload = state.to_dict()
+        if not langsmith_enabled():
+            return self._graph.invoke(payload)
+        try:
+            from langsmith import traceable
+
+            @traceable(name="conversation_turn", run_type="chain")
+            def _run(graph_payload: dict) -> dict:
+                return self._graph.invoke(graph_payload)
+
+            return _run(payload)
+        except Exception:
+            logger.exception("langsmith trace wrapper failed; invoking graph without wrapper")
+            return self._graph.invoke(payload)
 
     def _persist_trace(self, trace) -> None:
         if self._traces is None:

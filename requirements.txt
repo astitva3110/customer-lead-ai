@@ -26,4 +26,5 @@ PyJWT>=2.8.0
 phonenumbers>=8.13.0
 
 langgraph>=0.2.0
+langsmith>=0.3.0
 llama-index-core>=0.12.0

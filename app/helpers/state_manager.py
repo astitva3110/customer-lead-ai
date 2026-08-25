@@ -45,6 +45,8 @@ You are NOT the final response generator. Return ONLY valid JSON. No markdown. N
 Core rules:
 - conversation_status = persistent business journey (SALE, KNOWLEDGE, SUPPORT, OTHER)
 - current_status = what to handle RIGHT NOW (LEAD, KNOWLEDGE, SUPPORT, GENERAL)
+- GENERAL is ONLY for greetings, thanks, acknowledgements, small talk, and conversational pleasantries
+- Factual, informational, product, company, policy, warranty, pricing, or person-related questions => current_status=KNOWLEDGE, next_action=ANSWER_KNOWLEDGE. Never treat those as GENERAL
 - Temporary KNOWLEDGE must NOT erase SALE or SUPPORT
 - Answer what the user is asking NOW; never continue an old workflow blindly
 - Purchase intent ("I want to buy TINY") => conversation_status=SALE, current_status=LEAD, but do NOT start a contact form
@@ -78,6 +80,7 @@ MULTI_QUESTION_RE = re.compile(
     r"\b(?:and also|and what|as well as|,.*\?|;\s*|\?\s*.*\?)\b",
     re.IGNORECASE,
 )
+COMPOUND_AND_WHAT_RE = re.compile(r"\band\s+what\s+(?:is|are)\b", re.IGNORECASE)
 
 
 @dataclass
@@ -229,12 +232,19 @@ def conversation_status_label(state: ConversationState) -> str:
 
 def current_status_label(state: ConversationState) -> str:
     intent = state.current_turn_intent or ""
+    trace = state.trace or {}
+    if intent == TurnIntent.KNOWLEDGE or (
+        intent == TurnIntent.MIXED and bool(trace.get("should_retrieve"))
+    ):
+        return "KNOWLEDGE"
     if intent in {TurnIntent.LEAD_INTENT, TurnIntent.SALES, TurnIntent.ACTION}:
         return "LEAD"
-    if intent == TurnIntent.KNOWLEDGE:
-        return "KNOWLEDGE"
     if intent in {TurnIntent.SUPPORT_INTENT}:
         return "SUPPORT"
+    if intent in {TurnIntent.PROVIDE_INFORMATION, TurnIntent.CONTEXT_UPDATE} and (
+        state.lead_collection_active or state.awaiting_field
+    ):
+        return "LEAD"
     return "GENERAL"
 
 
@@ -296,7 +306,10 @@ def resolve_knowledge_queries(state: ConversationState) -> tuple[bool, list[str]
     scratch = ConversationState.from_dict(state.to_dict())
     rewriter.apply(scratch)
     resolved = (scratch.query_rewritten or message).strip()
-    diverge = bool(MULTI_QUESTION_RE.search(message) and message.count("?") > 1)
+    diverge = bool(
+        (MULTI_QUESTION_RE.search(message) and message.count("?") > 1)
+        or COMPOUND_AND_WHAT_RE.search(message)
+    )
     if diverge:
         parts = _split_knowledge_questions(message, state.product or "")
         if len(parts) > 1:
@@ -379,6 +392,34 @@ def _normalize_next_action(action: str) -> str:
 
 
 def _split_knowledge_questions(message: str, product: str) -> list[str]:
+    if COMPOUND_AND_WHAT_RE.search(message):
+        prefix, suffix = re.split(
+            r"\s+and\s+what\s+(?:is|are)\s+",
+            message,
+            maxsplit=1,
+            flags=re.IGNORECASE,
+        )
+        parts = [prefix.strip(" ,;."), suffix.strip(" ,;.")]
+        resolved: list[str] = []
+        for index, part in enumerate(parts):
+            text = part.strip(" ,;.")
+            if not text:
+                continue
+            if index == 0:
+                if not text.endswith("?"):
+                    text = f"{text}?"
+            else:
+                text = f"What is {text}"
+                if not text.endswith("?"):
+                    text = f"{text}?"
+            if product and product.lower() not in text.lower():
+                rewriter = QueryRewriter()
+                scratch = ConversationState(user_message=text, product=product)
+                rewriter.apply(scratch)
+                text = scratch.query_rewritten or text
+            resolved.append(text)
+        if len(resolved) > 1:
+            return resolved
     parts = re.split(r"\?\s*(?:and|,|;|\s+also\s+)", message, flags=re.IGNORECASE)
     resolved: list[str] = []
     for part in parts:

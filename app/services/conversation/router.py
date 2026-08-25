@@ -12,7 +12,7 @@ from app.services.conversation.models import (
     TicketStatus,
     TurnIntent,
 )
-from app.services.conversation.query_rewriter import extract_product
+from app.services.conversation.query_rewriter import extract_product, routing_query
 from app.interfaces.providers.llm import LLMProvider
 from app.helpers.conversation_extract import (
     extract_city,
@@ -29,6 +29,7 @@ from app.helpers.conversation_extract import (
 from app.helpers.phone import apply_phone_to_state, default_phone_region, extract_and_validate_phone
 from app.helpers.conversation_turn import (
     is_acknowledgement_only,
+    is_casual_conversation,
     is_greeting_only,
     is_phone_refusal,
     is_short_no,
@@ -36,6 +37,7 @@ from app.helpers.conversation_turn import (
     last_assistant_text,
     offered_callback,
     offered_product_information,
+    offered_support_help,
     strip_greeting_prefix,
     wants_more_product_info,
     is_tell_more,
@@ -56,7 +58,7 @@ from app.helpers.state_manager import (
     populate_deterministic_state_trace,
     turn_intent_from_status,
 )
-from app.helpers.query_normalize import looks_like_knowledge_request
+from app.helpers.query_normalize import looks_like_informational_question, looks_like_knowledge_request
 from app.services.diagnostics.recorder import current_trace, record_turn_understanding
 
 LEAD_PATTERNS = (
@@ -70,6 +72,7 @@ LEAD_PATTERNS = (
 )
 PURCHASE_PATTERNS = (
     r"want to buy",
+    r"need to (?:buy|purchase|order)",
     r"want to purchase",
     r"want to order",
     r"like to (?:buy|purchase|order)",
@@ -99,6 +102,10 @@ SUPPORT_PATTERNS = (
     r"hearing aid isn't",
     r"low sound",
     r"low volume",
+    r"not powering",
+    r"won't turn on",
+    r"wont turn on",
+    r"not turning on",
     r"need (?:help|assistance|assist)(?! choosing)",
     r"need assi?tance",
 )
@@ -119,12 +126,14 @@ def _explicit_purchase(message: str) -> bool:
     return _matches(message, PURCHASE_PATTERNS)
 
 
-def _actionable_lead(message: str, product: str, knowledge: bool) -> bool:
+def _actionable_lead(message: str, product: str, knowledge: bool, *, support_context: bool = False) -> bool:
     if _explicit_purchase(message):
         return True
     if knowledge:
         return False
-    if looks_like_support_escalation_request(message):
+    if support_context:
+        return False
+    if looks_like_support_escalation_request(message) or looks_like_support_contact_request(message):
         return False
     if product and WANT_PRODUCT_RE.search(message) and not KNOW_EXCEPTION_RE.search(message):
         return True
@@ -143,6 +152,10 @@ def _resolved_purchase_product(message: str, state: ConversationState) -> str:
 def _sales_pitch_query(product: str) -> str:
     name = product or "the product"
     return f"What is {name}?"
+
+
+def _lead_completed(state: ConversationState) -> bool:
+    return state.lead_status == LeadStatus.CREATED
 
 
 def _in_support_context(state: ConversationState) -> bool:
@@ -198,24 +211,25 @@ class ChatRouter:
 
     def _understand(self, state: ConversationState) -> TurnUnderstanding:
         raw_message = state.user_message or ""
-        message = strip_greeting_prefix(raw_message)
+        routed = routing_query(state)
+        message = strip_greeting_prefix(routed)
         last_assistant = last_assistant_text(state)
-        if is_greeting_only(raw_message):
+        if is_greeting_only(raw_message) or is_greeting_only(routed):
             return TurnUnderstanding(
                 turn_intent=TurnIntent.GENERAL,
                 needs_rag=False,
                 confidence=0.95,
             )
         if is_short_yes(raw_message) and last_assistant:
-            if _in_support_context(state):
+            if _in_support_context(state) or offered_support_help(last_assistant):
                 return TurnUnderstanding(
                     turn_intent=TurnIntent.CONFIRMATION,
                     needs_rag=False,
                     support_intent=True,
-                    explicit_action="create_ticket" if state.support_issue and not state.awaiting_field else None,
+                    explicit_action="create_ticket" if (state.support_issue or offered_support_help(last_assistant)) and not state.awaiting_field else None,
                     confidence=0.9,
                 )
-            if offered_callback(last_assistant):
+            if offered_callback(last_assistant) and not _lead_completed(state):
                 return TurnUnderstanding(
                     turn_intent=TurnIntent.ACTION,
                     needs_rag=False,
@@ -265,10 +279,22 @@ class ChatRouter:
         if is_short_no(raw_message) or is_phone_refusal(raw_message):
             return TurnUnderstanding(turn_intent=TurnIntent.CONFIRMATION, needs_rag=False, confidence=0.9)
         product = extract_product(message)
-        purchase_phrase = _matches(message, PURCHASE_PATTERNS) or _actionable_lead(message, product, False)
-        contact = looks_like_contact_request(message)
+        in_support = _in_support_context(state)
+        purchase_phrase = _matches(message, PURCHASE_PATTERNS) or _actionable_lead(
+            message,
+            product,
+            False,
+            support_context=in_support,
+        )
+        support_contact = looks_like_support_contact_request(message) or looks_like_support_contact_request(
+            raw_message
+        )
+        contact = looks_like_contact_request(message) or looks_like_contact_request(raw_message)
+        if in_support and contact:
+            support_contact = True
+            contact = False
         lead_phrase = purchase_phrase or contact or _matches(message, LEAD_PATTERNS)
-        support_phrase = _matches(message, SUPPORT_PATTERNS)
+        support_phrase = _matches(message, SUPPORT_PATTERNS) or _matches(raw_message, SUPPORT_PATTERNS)
         knowledge_phrase = looks_like_knowledge_request(message)
         if re.search(r"how (?:can|do) i (?:buy|purchase|order)", message, flags=re.IGNORECASE):
             knowledge_phrase = bool(
@@ -282,26 +308,31 @@ class ChatRouter:
             if not re.search(r"want to (?:buy|purchase|order)|call me|callback|contact me", message, flags=re.IGNORECASE):
                 purchase_phrase = False
                 lead_phrase = contact
-        issue = extract_issue(message)
+        issue = extract_issue(message) or extract_issue(raw_message)
         ticket = (
             looks_like_ticket_request(message)
-            or looks_like_support_contact_request(message)
+            or looks_like_ticket_request(raw_message)
+            or support_contact
             or (
-                looks_like_support_escalation_request(message)
+                (
+                    looks_like_support_escalation_request(message)
+                    or looks_like_support_escalation_request(raw_message)
+                )
                 and (
-                    _in_support_context(state)
+                    in_support
                     or (support_phrase and not lead_phrase)
                 )
             )
         )
+        issue_followup = bool(issue and in_support)
         name = extract_name(message)
         city = extract_city(message)
         phone = extract_phone_from_text(message, default_phone_region(state))
         context = extract_user_context(message)
-        providing = bool(state.awaiting_field) and not (knowledge_phrase or lead_phrase or support_phrase)
+        providing = bool(state.awaiting_field) and not (knowledge_phrase or lead_phrase or support_phrase or ticket)
         if PHONE_LIKE.search(message) and state.mode in {ChatMode.LEAD, ChatMode.SUPPORT} and not knowledge_phrase:
             providing = True
-        mixed = knowledge_phrase and (purchase_phrase or support_phrase or contact)
+        mixed = knowledge_phrase and (purchase_phrase or support_phrase or contact or ticket)
         needs_rag = bool(knowledge_phrase)
         action = None
         if contact:
@@ -316,23 +347,34 @@ class ChatRouter:
             intent = TurnIntent.KNOWLEDGE
         elif purchase_phrase or contact:
             intent = TurnIntent.LEAD_INTENT
-        elif support_phrase:
+        elif support_phrase or ticket or issue_followup:
             intent = TurnIntent.SUPPORT_INTENT
         elif name or city or phone or context:
             intent = TurnIntent.CONTEXT_UPDATE
-        elif state.mode:
+        elif is_casual_conversation(raw_message) or is_casual_conversation(routed):
+            intent = TurnIntent.GENERAL
+        elif looks_like_informational_question(message) or looks_like_informational_question(raw_message):
+            intent = TurnIntent.KNOWLEDGE
+            needs_rag = True
+        elif state.mode in {ChatMode.LEAD, ChatMode.SUPPORT} or state.conversation_goal in {
+            ConversationGoal.LEAD,
+            ConversationGoal.SALES,
+            ConversationGoal.SUPPORT,
+        }:
             intent = TurnIntent.GENERAL
         else:
             intent = TurnIntent.KNOWLEDGE
             needs_rag = True
         confidence = 0.9 if intent not in {TurnIntent.GENERAL, TurnIntent.UNKNOWN} else 0.6
-        if intent == TurnIntent.GENERAL and state.mode:
+        if intent == TurnIntent.GENERAL and (
+            state.mode or is_casual_conversation(raw_message) or is_casual_conversation(routed)
+        ):
             confidence = 0.9
         return TurnUnderstanding(
             turn_intent=intent,
             needs_rag=needs_rag,
             lead_intent=purchase_phrase or contact,
-            support_intent=support_phrase or ticket,
+            support_intent=support_phrase or ticket or issue_followup,
             information_updates={
                 "name": name or None,
                 "phone": phone[0] if phone else None,
@@ -467,6 +509,20 @@ class ChatRouter:
                 state.trace["should_retrieve"] = False
                 state.trace["needs_natural_reply"] = True
                 return
+            if _lead_completed(state) and not understanding.lead_intent and not understanding.support_intent:
+                state.lead_collection_active = False
+                state.awaiting_field = ""
+                if understanding.needs_rag:
+                    state.intent = ChatMode.KNOWLEDGE
+                    state.mode = ChatMode.KNOWLEDGE
+                    state.trace["should_retrieve"] = True
+                    state.trace["needs_natural_reply"] = False
+                    return
+                state.intent = ChatMode.KNOWLEDGE
+                state.mode = ChatMode.KNOWLEDGE
+                state.trace["should_retrieve"] = False
+                state.trace["needs_natural_reply"] = True
+                return
             if state.conversation_goal == ConversationGoal.SUPPORT or state.mode == ChatMode.SUPPORT:
                 state.intent = ChatMode.SUPPORT
                 state.mode = ChatMode.SUPPORT
@@ -487,14 +543,23 @@ class ChatRouter:
             state.conversation_goal = ConversationGoal.SALES
             state.sales_interest = True
             state.lead_intent = True
-            purchase_product = _resolved_purchase_product(state.user_message or "", state)
+            purchase_product = _resolved_purchase_product(routing_query(state), state)
             if purchase_product and not state.product:
                 state.product = purchase_product
-            if _explicit_purchase(state.user_message or ""):
+            if _explicit_purchase(routing_query(state)):
                 state.conversation_goal = ConversationGoal.LEAD
                 state.lead_workflow = LeadWorkflow.DISCUSSING_PRODUCT
                 state.lead_collection_active = False
-                state.lead_status = LeadStatus.IDLE
+                if understanding.needs_rag:
+                    if state.lead_status != LeadStatus.CREATED:
+                        state.lead_status = LeadStatus.IDLE
+                    state.return_mode = ChatMode.LEAD
+                    state.intent = ChatMode.KNOWLEDGE
+                    state.mode = ChatMode.KNOWLEDGE
+                    state.trace["should_retrieve"] = True
+                    return
+                if state.lead_status != LeadStatus.CREATED:
+                    state.lead_status = LeadStatus.IDLE
                 state.intent = ChatMode.LEAD
                 state.mode = ChatMode.LEAD
                 state.return_mode = ""
@@ -649,7 +714,7 @@ class ChatRouter:
         if not self._llm or not getattr(self._llm, "is_configured", False):
             return False
         message = (state.user_message or "").strip()
-        if is_greeting_only(message):
+        if is_greeting_only(message) or is_casual_conversation(message):
             return False
         if understanding.turn_intent == TurnIntent.PROVIDE_INFORMATION and state.awaiting_field:
             return False

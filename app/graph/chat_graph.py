@@ -10,10 +10,10 @@ from app.services.conversation.guardrail import GUARDRAIL_REJECTION_MESSAGE, gua
 from app.services.conversation.knowledge_flow import KnowledgeFlow
 from app.services.conversation.lead_service import LeadService
 from app.services.conversation.models import ChatMode, ConversationState
-from app.services.conversation.query_rewriter import apply_named_product
+from app.services.conversation.query_rewriter import QueryRewriter, apply_named_product
 from app.services.conversation.router import ChatRouter
 from app.services.conversation.support_service import SupportService
-from app.services.diagnostics.recorder import current_trace, record_guardrail
+from app.services.diagnostics.recorder import current_trace, record_guardrail, record_query
 from app.services.generation.generation_service import GenerationService
 
 
@@ -76,8 +76,10 @@ def build_chat_graph(
     lead: LeadService,
     support: SupportService,
     generation: GenerationService,
+    rewriter: QueryRewriter | None = None,
 ):
     """LangGraph owns conversation workflow. Retrieval stays outside the graph."""
+    rewriter = rewriter or QueryRewriter()
 
     def guardrail_node(payload: GraphState) -> GraphState:
         state = _load(payload)
@@ -100,6 +102,18 @@ def build_chat_graph(
             state.trace["guardrail"] = reason
             return _dump(state)
         apply_named_product(state)
+        return _dump(state)
+
+    def rewrite_node(payload: GraphState) -> GraphState:
+        started = time.perf_counter()
+        state = _load(payload)
+        rewriter.normalize(state)
+        apply_named_product(state)
+        latency_ms = (time.perf_counter() - started) * 1000
+        state.trace = dict(state.trace or {})
+        state.trace["query_rewrite_ms"] = round(latency_ms, 3)
+        if current_trace():
+            record_query(state, latency_ms=latency_ms)
         return _dump(state)
 
     def router_node(payload: GraphState) -> GraphState:
@@ -138,7 +152,7 @@ def build_chat_graph(
         return _dump(state)
 
     def after_guardrail(payload: GraphState) -> str:
-        return "finish" if payload.get("guardrail_rejected") else "router"
+        return "finish" if payload.get("guardrail_rejected") else "rewrite"
 
     def after_router(payload: GraphState) -> str:
         trace = payload.get("trace") or {}
@@ -148,6 +162,8 @@ def build_chat_graph(
             return "reply"
         mode = payload.get("mode")
         if mode == ChatMode.LEAD:
+            if payload.get("lead_status") == "CREATED" and not trace.get("should_create_lead"):
+                return "reply"
             return "lead"
         if mode == ChatMode.SUPPORT:
             return "support"
@@ -167,6 +183,7 @@ def build_chat_graph(
 
     builder = StateGraph(GraphState)
     builder.add_node("guardrail", guardrail_node)
+    builder.add_node("rewrite", rewrite_node)
     builder.add_node("router", router_node)
     builder.add_node("knowledge", knowledge_node)
     builder.add_node("lead", lead_node)
@@ -178,8 +195,9 @@ def build_chat_graph(
     builder.add_conditional_edges(
         "guardrail",
         after_guardrail,
-        {"finish": "finish", "router": "router"},
+        {"finish": "finish", "rewrite": "rewrite"},
     )
+    builder.add_edge("rewrite", "router")
     builder.add_conditional_edges(
         "router",
         after_router,

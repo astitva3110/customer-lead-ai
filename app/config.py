@@ -66,6 +66,12 @@ class RuntimeSettings(BaseSettings):
     chat_trace_text_preview_chars: int = 500
     chat_debug_console: bool = False
 
+    # LangSmith (optional; never hardcode credentials)
+    langsmith_tracing: bool = False
+    langsmith_api_key: str = ""
+    langsmith_project: str = "earkart-chatbot"
+    langsmith_endpoint: str = ""
+
 
 _runtime = RuntimeSettings()
 

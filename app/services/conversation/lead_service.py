@@ -15,7 +15,7 @@ from app.helpers.phone import (
     phone_validation_reply,
 )
 from app.interfaces.providers.business import LeadTool
-from app.services.conversation.models import ConversationState, LeadStatus, LeadWorkflow
+from app.services.conversation.models import ConversationState, LeadStage, LeadStatus, LeadWorkflow
 from app.services.conversation.query_rewriter import apply_named_product, extract_product
 
 logger = logging.getLogger(__name__)
@@ -74,9 +74,7 @@ class LeadService:
 
     def handle(self, state: ConversationState) -> ConversationState:
         if state.lead_status == LeadStatus.CREATED:
-            state.response = lead_created_reply(state.user_name)
-            state.lead_workflow = LeadWorkflow.CREATED
-            return state
+            return _release_completed_lead(state)
         apply_named_product(state)
         self._ingest_fields(state)
         if _is_phone_retry(state):
@@ -98,16 +96,17 @@ class LeadService:
             return state
         state.lead_status = LeadStatus.CREATED
         state.lead_workflow = LeadWorkflow.CREATED
+        state.lead_stage = LeadStage.COMPLETED
+        state.lead_collection_active = False
         state.awaiting_field = ""
+        state.explicit_action = ""
         state.response = lead_created_reply(state.user_name)
         _mark_lead_created(state, lead_id)
         return state
 
     def converse(self, state: ConversationState) -> ConversationState:
         if state.lead_status == LeadStatus.CREATED:
-            state.response = lead_created_reply(state.user_name)
-            state.lead_workflow = LeadWorkflow.CREATED
-            return state
+            return _release_completed_lead(state)
         if (
             is_acknowledgement_only(state.user_message or "")
             and state.awaiting_field
@@ -160,7 +159,10 @@ class LeadService:
             return state
         state.lead_status = LeadStatus.CREATED
         state.lead_workflow = LeadWorkflow.CREATED
+        state.lead_stage = LeadStage.COMPLETED
+        state.lead_collection_active = False
         state.awaiting_field = ""
+        state.explicit_action = ""
         state.response = lead_created_reply(state.user_name)
         _mark_lead_created(state, lead_id)
         _record_tool_ms(state, started)
@@ -274,6 +276,20 @@ class LeadService:
 
     def _prompt(self, field: str, *, name: str = "") -> str:
         return prompt_for_lead_field(field, name=name)
+
+
+def _release_completed_lead(state: ConversationState) -> ConversationState:
+    """Lead already saved. Do not re-enter collection or repeat the completion line."""
+    state.lead_workflow = LeadWorkflow.CREATED
+    state.lead_stage = LeadStage.COMPLETED
+    state.lead_collection_active = False
+    state.awaiting_field = ""
+    state.explicit_action = ""
+    state.response = ""
+    state.trace = dict(state.trace or {})
+    state.trace["needs_natural_reply"] = True
+    state.trace["lead_workflow_released"] = True
+    return state
 
 
 def _log_lead_completion(state: ConversationState, missing: str) -> None:
