@@ -130,6 +130,27 @@ TICKET_REQUEST_PATTERNS = (
     r"need a (?:support )?ticket",
     r"\bticket please\b",
 )
+_CUSTOMER_WORD = r"(?:cust(?:o|)?mm?er)"
+_SUPPORT_TARGET = rf"(?:{_CUSTOMER_WORD} )?(?:support|service)(?: team)?"
+SUPPORT_CONTACT_PATTERNS = (
+    rf"talk to (?:your )?{_SUPPORT_TARGET}",
+    rf"speak to (?:your )?{_SUPPORT_TARGET}",
+    rf"contact (?:your )?{_SUPPORT_TARGET}",
+    rf"reach (?:your )?{_SUPPORT_TARGET}",
+    rf"connect me (?:to|with) (?:your )?{_SUPPORT_TARGET}",
+    rf"want to (?:talk|speak|contact)(?: to)? (?:your )?{_SUPPORT_TARGET}",
+    rf"need to (?:talk|speak)(?: to)? (?:your )?{_SUPPORT_TARGET}",
+    rf"(?:talk|speak) (?:to )?(?:your )?{_SUPPORT_TARGET}",
+)
+# repair, repir, reapir, and similar typos
+_REPAIR_WORD = r"re(?:p(?:ai?r|a?ir)|apir)"
+SUPPORT_ESCALATION_PATTERNS = (
+    rf"want to {_REPAIR_WORD}",
+    rf"need (?:to )?{_REPAIR_WORD}",
+    r"need (?:your )?(?:help|assistance|assist)",
+    r"need assi?tance",
+    r"\bplease help\b",
+)
 _FATHER_USES_RE = re.compile(
     r"(?:my |our )?(father|mother|dad|mom|parent)\s+(?:currently )?uses?\s+([A-Za-z][A-Za-z0-9\-]{1,40})",
     re.IGNORECASE,
@@ -153,6 +174,14 @@ def looks_like_contact_request(message: str) -> bool:
 
 def looks_like_ticket_request(message: str) -> bool:
     return any(re.search(pattern, message or "", flags=re.IGNORECASE) for pattern in TICKET_REQUEST_PATTERNS)
+
+
+def looks_like_support_contact_request(message: str) -> bool:
+    return any(re.search(pattern, message or "", flags=re.IGNORECASE) for pattern in SUPPORT_CONTACT_PATTERNS)
+
+
+def looks_like_support_escalation_request(message: str) -> bool:
+    return any(re.search(pattern, message or "", flags=re.IGNORECASE) for pattern in SUPPORT_ESCALATION_PATTERNS)
 
 
 def extract_user_context(message: str) -> dict[str, str]:

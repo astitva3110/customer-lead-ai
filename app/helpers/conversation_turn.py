@@ -20,7 +20,7 @@ GREETING_SMALLTALK_RE = re.compile(
     re.IGNORECASE,
 )
 SHORT_YES_RE = re.compile(
-    r"^(yes|yeah|yep|yup|sure|ok|okay|please|y|haan|acha)[.!\s]*$",
+    r"^(yes|yeah|yep|yup|sure|ok|okay|please|y|haan|acha)(?:\s+(?:plz|please|pls))?[\s!.]*$",
     re.IGNORECASE,
 )
 ACK_ONLY_RE = re.compile(
@@ -28,7 +28,7 @@ ACK_ONLY_RE = re.compile(
     re.IGNORECASE,
 )
 MORE_INFO_RE = re.compile(
-    r"^(?:yes please|yeah please|tell me more|more please|go ahead|"
+    r"^(?:yes please|yeah please|yes plz|yeah plz|yes pls|yeah pls|tell me more|more please|go ahead|"
     r"sure tell me|yes tell me)[.!\s]*$",
     re.IGNORECASE,
 )
@@ -55,6 +55,16 @@ def last_assistant_text(state: ConversationState) -> str:
         if item.get("role") == "assistant":
             return item.get("content") or ""
     return ""
+
+
+def recent_assistant_texts(state: ConversationState, *, limit: int = 2) -> list[str]:
+    texts: list[str] = []
+    for item in reversed(state.conversation_history or []):
+        if item.get("role") == "assistant":
+            texts.append(item.get("content") or "")
+            if len(texts) >= limit:
+                break
+    return texts
 
 
 def is_greeting_only(message: str) -> bool:

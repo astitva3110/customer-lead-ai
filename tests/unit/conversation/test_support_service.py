@@ -4,28 +4,31 @@ from app.helpers.conversation_reply import ticket_created_reply
 from app.repositories.memory_ticket import InMemoryTicketAdapter
 
 
-def test_missing_product_prompts_for_product() -> None:
+def test_missing_phone_prompts_after_name() -> None:
     service = SupportService(InMemoryTicketAdapter())
     state = service.handle(
         ConversationState(user_message="My hearing aid isn't working.", user_name="Ada")
     )
     assert state.ticket_status == TicketStatus.COLLECTING
-    assert state.awaiting_field == "product"
+    assert state.support_collection_active
+    assert state.awaiting_field == "phone"
     assert state.support_issue
 
 
-def test_missing_phone_prompts_for_phone() -> None:
+def test_missing_product_prompts_after_phone() -> None:
     service = SupportService(InMemoryTicketAdapter())
     state = ConversationState(
         user_message="Radius M16",
         user_name="Ada",
+        phone="+919876543210",
         support_issue="not working",
         awaiting_field="product",
         ticket_status=TicketStatus.COLLECTING,
+        support_collection_active=True,
     )
     state = service.handle(state)
     assert state.product == "Radius M16"
-    assert state.awaiting_field == "phone"
+    assert state.awaiting_field == ""
 
 
 def test_ticket_creation() -> None:
@@ -37,6 +40,7 @@ def test_ticket_creation() -> None:
         support_issue="My hearing aid isn't working.",
         awaiting_field="phone",
         ticket_status=TicketStatus.COLLECTING,
+        support_collection_active=True,
         conversation_id="c1",
     )
     state = SupportService(adapter).handle(state)

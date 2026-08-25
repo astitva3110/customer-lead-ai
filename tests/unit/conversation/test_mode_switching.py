@@ -67,8 +67,8 @@ def test_support_ticket_creation_does_not_call_qwen() -> None:
     orchestrator.handle(cid, "My hearing aid isn't working.")
     orchestrator.handle(cid, "Please create a support ticket.")
     orchestrator.handle(cid, "Ada")
-    orchestrator.handle(cid, "Radius M16")
-    result = orchestrator.handle(cid, "+91 9876543210")
+    orchestrator.handle(cid, "+91 9876543210")
+    result = orchestrator.handle(cid, "Radius M16")
     assert knowledge.queries == []
     assert result.ticket_status == TicketStatus.CREATED
     assert result.response == ticket_created_reply("Ada")

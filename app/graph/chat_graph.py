@@ -34,6 +34,7 @@ class GraphState(TypedDict, total=False):
     sales_interest: bool
     lead_stage: str
     lead_collection_active: bool
+    support_collection_active: bool
     explicit_action: str
     user_context: dict[str, Any]
     product: str

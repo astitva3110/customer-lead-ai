@@ -93,6 +93,7 @@ class ConversationState:
     sales_interest: bool = False
     lead_stage: str = LeadStage.NOT_STARTED
     lead_collection_active: bool = False
+    support_collection_active: bool = False
     explicit_action: str = ""
     user_context: dict[str, Any] = field(default_factory=dict)
 
@@ -142,6 +143,7 @@ class ConversationState:
             "sales_interest": self.sales_interest,
             "lead_stage": self.lead_stage,
             "lead_collection_active": self.lead_collection_active,
+            "support_collection_active": self.support_collection_active,
             "explicit_action": self.explicit_action,
             "user_context": dict(self.user_context),
             "product": self.product,

@@ -12,7 +12,7 @@ from app.helpers.conversation_prompt import (
     build_conversation_user_prompt,
     parse_conversation_answer,
 )
-from app.helpers.conversation_reply import conversational_fallback, repeats_previous
+from app.helpers.conversation_reply import conversational_fallback, repeats_recent_assistant
 from app.helpers.conversation_turn import has_greeting_prefix, last_assistant_text
 from app.helpers.generation_json import extract_json_object
 from app.helpers.generation_prompt import GENERATION_SYSTEM_PROMPT, build_generation_user_prompt
@@ -160,8 +160,7 @@ class GenerationService:
         state.trace["generation_temperature"] = self._conversation_temperature
         state.trace["llm_call_count"] = int(state.trace.get("llm_call_count") or 0) + 1
         answer = parse_conversation_answer(raw, state)
-        last = last_assistant_text(state)
-        if last and repeats_previous(last, answer):
+        if repeats_recent_assistant(state, answer):
             answer = fallback
         if _claims_success(answer) and not state.trace.get("tool_called"):
             answer = fallback

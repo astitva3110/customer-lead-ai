@@ -140,10 +140,53 @@ def _situation(state: ConversationState) -> str:
             "Do not request contact details."
         )
     if state.conversation_goal == ConversationGoal.SUPPORT:
+        message = (state.user_message or "").lower()
+        if any(
+            phrase in message
+            for phrase in ("do not know", "don't know", "not sure", "no idea", "can't tell", "cannot tell")
+        ):
+            product = state.product or "their hearing aid"
+            return (
+                f"The user has a problem with {product} but cannot describe it clearly. "
+                "Be empathetic and ask two or three simple diagnostic questions such as whether "
+                "there is any sound, whether it turns on or charges, or when the problem started. "
+                "Do not start a ticket questionnaire unless they asked for one."
+            )
+        if "repair" in message or any(
+            token in message for token in ("need help", "need assistance", "need assist", "need assitance")
+        ):
+            product = state.product or "their hearing aid"
+            return (
+                f"The user wants repair or hands-on help with {product}. "
+                "Acknowledge that warmly and ask one simple diagnostic question to understand the issue. "
+                "If they asked to repair or need assistance, make support help available naturally."
+            )
+        if state.current_turn_intent == TurnIntent.CONFIRMATION:
+            product = state.product or "their hearing aid"
+            return (
+                f"The user gave a brief confirmation while troubleshooting {product}. "
+                "Continue support with one or two simple next questions. "
+                "Do not switch to product marketing or knowledge-base features. "
+                "Do not repeat your previous assistant message."
+            )
         if state.current_turn_intent == TurnIntent.SUPPORT_INTENT:
+            if "repair" in message:
+                product = state.product or "their hearing aid"
+                return (
+                    f"The user wants {product} repaired. "
+                    "Acknowledge that and ask one simple question about what happens when they try to use it."
+                )
             return (
                 "The user described a product issue. Be briefly empathetic and help with what they said. "
+                "Ask one simple diagnostic question if useful. "
                 "Do not start a ticket questionnaire unless they asked for a ticket."
+            )
+        if state.current_turn_intent == TurnIntent.GENERAL:
+            product = state.product or "their hearing aid"
+            return (
+                f"The user is still discussing a support issue with {product}. "
+                "Respond to their current message with one helpful next step or question. "
+                "Do not repeat earlier assistant messages or switch to product marketing."
             )
         return (
             "The user has a product issue. Help with this message only. "

@@ -21,6 +21,8 @@ from app.helpers.conversation_extract import (
     extract_phone_from_text,
     extract_user_context,
     looks_like_contact_request,
+    looks_like_support_contact_request,
+    looks_like_support_escalation_request,
     looks_like_ticket_request,
     merge_user_context,
 )
@@ -88,13 +90,17 @@ SUPPORT_PATTERNS = (
     r"isn't working",
     r"isnt working",
     r"\bbroken\b",
-    r"\brepair\b",
+    r"\bre(?:p(?:ai?r|a?ir)|apir)\b",
     r"\bticket\b",
     r"\bsupport\b",
+    r"cust(?:o|)?mm?er service",
+    r"cust(?:o|)?mm?er support",
     r"hearing aid is not",
     r"hearing aid isn't",
     r"low sound",
     r"low volume",
+    r"need (?:help|assistance|assist)(?! choosing)",
+    r"need assi?tance",
 )
 PHONE_LIKE = re.compile(r"(\+?\d[\d\s\-()]{7,}\d)")
 WANT_PRODUCT_RE = re.compile(
@@ -102,25 +108,50 @@ WANT_PRODUCT_RE = re.compile(
     re.IGNORECASE,
 )
 KNOW_EXCEPTION_RE = re.compile(r"\b(?:know|understand|learn|hear about)\b", re.IGNORECASE)
+BUY_PRONOUN_RE = re.compile(r"\b(?:it|this one|this)\b", re.IGNORECASE)
 
 
 def _matches(message: str, patterns: tuple[str, ...]) -> bool:
     return any(re.search(pattern, message, flags=re.IGNORECASE) for pattern in patterns)
 
 
+def _explicit_purchase(message: str) -> bool:
+    return _matches(message, PURCHASE_PATTERNS)
+
+
 def _actionable_lead(message: str, product: str, knowledge: bool) -> bool:
-    if _matches(message, PURCHASE_PATTERNS):
+    if _explicit_purchase(message):
         return True
     if knowledge:
+        return False
+    if looks_like_support_escalation_request(message):
         return False
     if product and WANT_PRODUCT_RE.search(message) and not KNOW_EXCEPTION_RE.search(message):
         return True
     return False
 
 
+def _resolved_purchase_product(message: str, state: ConversationState) -> str:
+    product = extract_product(message)
+    if product:
+        return product
+    if _explicit_purchase(message) and BUY_PRONOUN_RE.search(message):
+        return state.product or ""
+    return ""
+
+
 def _sales_pitch_query(product: str) -> str:
     name = product or "the product"
     return f"What is {name}?"
+
+
+def _in_support_context(state: ConversationState) -> bool:
+    return (
+        state.conversation_goal == ConversationGoal.SUPPORT
+        or state.mode == ChatMode.SUPPORT
+        or bool(state.support_intent)
+        or state.support_collection_active
+    )
 
 
 class ChatRouter:
@@ -158,6 +189,7 @@ class ChatRouter:
         state.trace["lead_stage"] = state.lead_stage or LeadStage.NOT_STARTED
         state.trace["lead_status"] = state.lead_stage or LeadStage.NOT_STARTED
         state.trace["lead_collection_active"] = bool(state.lead_collection_active)
+        state.trace["support_collection_active"] = bool(state.support_collection_active)
         state.trace["history_turn_count"] = len(state.conversation_history or [])
         if current_trace():
             method = "llm" if state.trace.get("state_manager_llm") or state.trace.get("turn_understanding_llm") else "deterministic"
@@ -175,6 +207,14 @@ class ChatRouter:
                 confidence=0.95,
             )
         if is_short_yes(raw_message) and last_assistant:
+            if _in_support_context(state):
+                return TurnUnderstanding(
+                    turn_intent=TurnIntent.CONFIRMATION,
+                    needs_rag=False,
+                    support_intent=True,
+                    explicit_action="create_ticket" if state.support_issue and not state.awaiting_field else None,
+                    confidence=0.9,
+                )
             if offered_callback(last_assistant):
                 return TurnUnderstanding(
                     turn_intent=TurnIntent.ACTION,
@@ -190,6 +230,14 @@ class ChatRouter:
                     confidence=0.9,
                 )
         if is_acknowledgement_only(raw_message):
+            if _in_support_context(state):
+                return TurnUnderstanding(
+                    turn_intent=TurnIntent.CONFIRMATION,
+                    needs_rag=False,
+                    support_intent=True,
+                    explicit_action="create_ticket" if state.support_issue and not state.awaiting_field else None,
+                    confidence=0.92,
+                )
             return TurnUnderstanding(
                 turn_intent=TurnIntent.GENERAL,
                 needs_rag=False,
@@ -205,8 +253,7 @@ class ChatRouter:
                     or is_tell_more(raw_message)
                     or (
                         state.product
-                        and state.conversation_goal
-                        in {ConversationGoal.LEAD, ConversationGoal.SALES, ConversationGoal.SUPPORT}
+                        and state.conversation_goal in {ConversationGoal.LEAD, ConversationGoal.SALES}
                     )
                 ):
                     return TurnUnderstanding(
@@ -235,11 +282,21 @@ class ChatRouter:
             if not re.search(r"want to (?:buy|purchase|order)|call me|callback|contact me", message, flags=re.IGNORECASE):
                 purchase_phrase = False
                 lead_phrase = contact
-        ticket = looks_like_ticket_request(message)
+        issue = extract_issue(message)
+        ticket = (
+            looks_like_ticket_request(message)
+            or looks_like_support_contact_request(message)
+            or (
+                looks_like_support_escalation_request(message)
+                and (
+                    _in_support_context(state)
+                    or (support_phrase and not lead_phrase)
+                )
+            )
+        )
         name = extract_name(message)
         city = extract_city(message)
         phone = extract_phone_from_text(message, default_phone_region(state))
-        issue = extract_issue(message)
         context = extract_user_context(message)
         providing = bool(state.awaiting_field) and not (knowledge_phrase or lead_phrase or support_phrase)
         if PHONE_LIKE.search(message) and state.mode in {ChatMode.LEAD, ChatMode.SUPPORT} and not knowledge_phrase:
@@ -321,12 +378,14 @@ class ChatRouter:
             state.explicit_action = understanding.explicit_action
             if understanding.explicit_action == "create_lead":
                 state.lead_collection_active = True
+            if understanding.explicit_action == "create_ticket":
+                state.support_collection_active = True
 
         state.current_turn_intent = understanding.turn_intent
         state.trace = dict(state.trace or {})
         state.trace["should_retrieve"] = bool(understanding.needs_rag)
-        state.trace["should_create_lead"] = False
-        state.trace["should_create_ticket"] = False
+        state.trace["should_create_lead"] = understanding.explicit_action == "create_lead"
+        state.trace["should_create_ticket"] = understanding.explicit_action == "create_ticket"
         state.trace["detected_product"] = updates.get("product") or extract_product(state.user_message)
         state.trace["information_provided"] = understanding.turn_intent == TurnIntent.PROVIDE_INFORMATION
         state.trace["ask_missing"] = False
@@ -365,12 +424,21 @@ class ChatRouter:
             if intent == TurnIntent.ACTION and understanding.explicit_action == "create_ticket":
                 state.conversation_goal = ConversationGoal.SUPPORT
                 state.support_intent = True
+                state.support_collection_active = True
                 state.intent = ChatMode.SUPPORT
                 state.mode = ChatMode.SUPPORT
                 return
-            if state.conversation_goal == ConversationGoal.SUPPORT or state.mode == ChatMode.SUPPORT:
+            if _in_support_context(state):
+                state.conversation_goal = ConversationGoal.SUPPORT
+                state.support_intent = True
                 state.intent = ChatMode.SUPPORT
                 state.mode = ChatMode.SUPPORT
+                if understanding.explicit_action == "create_ticket":
+                    state.support_collection_active = True
+                    if state.ticket_status == TicketStatus.IDLE:
+                        state.ticket_status = TicketStatus.COLLECTING
+                    state.trace["should_create_ticket"] = True
+                    return
             elif state.conversation_goal in {ConversationGoal.LEAD, ConversationGoal.SALES} or state.mode == ChatMode.LEAD:
                 state.intent = ChatMode.LEAD
                 state.mode = ChatMode.LEAD
@@ -384,6 +452,15 @@ class ChatRouter:
             return
 
         if intent in {TurnIntent.PROVIDE_INFORMATION, TurnIntent.CONTEXT_UPDATE, TurnIntent.GENERAL}:
+            if understanding.explicit_action == "create_ticket":
+                state.conversation_goal = ConversationGoal.SUPPORT
+                state.support_intent = True
+                state.support_collection_active = True
+                state.intent = ChatMode.SUPPORT
+                state.mode = ChatMode.SUPPORT
+                if state.ticket_status == TicketStatus.IDLE:
+                    state.ticket_status = TicketStatus.COLLECTING
+                return
             if is_greeting_only(state.user_message or "") and not state.mode:
                 state.intent = ChatMode.KNOWLEDGE
                 state.mode = ChatMode.KNOWLEDGE
@@ -410,6 +487,18 @@ class ChatRouter:
             state.conversation_goal = ConversationGoal.SALES
             state.sales_interest = True
             state.lead_intent = True
+            purchase_product = _resolved_purchase_product(state.user_message or "", state)
+            if purchase_product and not state.product:
+                state.product = purchase_product
+            if _explicit_purchase(state.user_message or ""):
+                state.conversation_goal = ConversationGoal.LEAD
+                state.lead_workflow = LeadWorkflow.DISCUSSING_PRODUCT
+                state.lead_collection_active = False
+                state.lead_status = LeadStatus.IDLE
+                state.intent = ChatMode.LEAD
+                state.mode = ChatMode.LEAD
+                state.return_mode = ""
+                return
             if understanding.explicit_action == "create_lead" or state.lead_collection_active:
                 state.lead_collection_active = True
                 state.lead_status = (
@@ -451,8 +540,20 @@ class ChatRouter:
 
         if intent in {TurnIntent.SUPPORT_INTENT, TurnIntent.MIXED} and understanding.support_intent:
             state.conversation_goal = ConversationGoal.SUPPORT
-            if state.ticket_status == TicketStatus.IDLE:
-                state.ticket_status = TicketStatus.COLLECTING
+            state.support_intent = True
+            if understanding.explicit_action == "create_ticket" or state.support_collection_active:
+                state.support_collection_active = True
+                if state.ticket_status == TicketStatus.IDLE:
+                    state.ticket_status = TicketStatus.COLLECTING
+                if understanding.needs_rag:
+                    state.return_mode = ChatMode.SUPPORT
+                    state.intent = ChatMode.KNOWLEDGE
+                    state.mode = ChatMode.KNOWLEDGE
+                else:
+                    state.intent = ChatMode.SUPPORT
+                    state.mode = ChatMode.SUPPORT
+                    state.return_mode = ""
+                return
             if understanding.needs_rag:
                 state.return_mode = ChatMode.SUPPORT
                 state.intent = ChatMode.KNOWLEDGE
@@ -498,7 +599,9 @@ class ChatRouter:
                 state.trace["resume_lead_after_knowledge"] = True
                 state.trace["next_action"] = "ANSWER_KNOWLEDGE_THEN_RESUME_LEAD"
             elif goal == ConversationGoal.SUPPORT and (
-                state.awaiting_field or state.explicit_action == "create_ticket"
+                state.awaiting_field
+                or state.explicit_action == "create_ticket"
+                or state.support_collection_active
             ):
                 state.trace["resume_support_after_knowledge"] = True
                 state.trace["next_action"] = "ANSWER_KNOWLEDGE_THEN_RESUME_SUPPORT"
