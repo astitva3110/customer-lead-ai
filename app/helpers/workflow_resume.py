@@ -65,7 +65,8 @@ def is_active_lead_collection(state: ConversationState) -> bool:
         return True
     if trace.get("resume_lead_after_knowledge"):
         return True
-    return state.lead_status == LeadStatus.COLLECTING
+    # Purchase discussion sets lead_status=COLLECTING without starting the contact form.
+    return False
 
 
 def should_resume_lead_after_knowledge(state: ConversationState) -> bool:

@@ -130,7 +130,10 @@ class GenerationService:
                 explained=explained,
             )
         if result is None:
-            logger.warning("generation failed closed: invalid or ungrounded JSON")
+            logger.warning(
+                "generation failed closed: invalid or ungrounded JSON reason=%s",
+                explained.get("validator_reason") or "invalid_json",
+            )
             return ungrounded_fallback()
         return result
 

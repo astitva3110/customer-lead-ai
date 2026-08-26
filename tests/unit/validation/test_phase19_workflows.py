@@ -14,7 +14,7 @@ def test_knowledge_simple_query_one_llm_call() -> None:
     result = orchestrator.handle("k1", "What is TINY?")
     assert result.mode == ChatMode.KNOWLEDGE
     assert knowledge.queries == ["What is TINY?"]
-    assert recorder.call_count == 1
+    assert recorder.generation_call_count == 1
     assert result.sources
     assert result.response != INSUFFICIENT_INFORMATION_MESSAGE
     assert not result.query_rewritten
@@ -28,7 +28,7 @@ def test_contextual_rewrite_then_generation() -> None:
     assert result.mode == ChatMode.KNOWLEDGE
     assert result.query_rewritten == "What is the battery life of TINY?"
     assert knowledge.queries[-1] == "What is the battery life of TINY?"
-    assert recorder.call_count == 2
+    assert recorder.generation_call_count == 2
 
 
 def test_bte_followup_rewrite_requires_product() -> None:
@@ -49,7 +49,7 @@ def test_corpus_gap_signia_fail_closed() -> None:
     assert result.mode == ChatMode.KNOWLEDGE
     assert result.response == INSUFFICIENT_INFORMATION_MESSAGE
     assert result.sources == []
-    assert recorder.call_count == 1
+    assert recorder.generation_call_count == 1
 
 
 def test_corpus_gap_battery_hours_fail_closed() -> None:
@@ -65,7 +65,7 @@ def test_empty_retrieval_skips_litellm() -> None:
     knowledge = FakeKnowledge(chunks=[])
     orchestrator, recorder, *_ = make_graph_stack(knowledge=knowledge)
     result = orchestrator.handle("gap3", "What is TINY?")
-    assert recorder.call_count == 0
+    assert recorder.generation_call_count == 0
     assert result.response == INSUFFICIENT_INFORMATION_MESSAGE
 
 
@@ -75,9 +75,9 @@ def test_lead_full_flow_zero_llm_calls() -> None:
     cid = "lead-1"
     assert orchestrator.handle(cid, "I want to buy Radius M16.").mode == ChatMode.LEAD
     orchestrator.handle(cid, "Please call me.")
+    orchestrator.handle(cid, "Ada")
     orchestrator.handle(cid, "not-a-phone")
     orchestrator.handle(cid, "+91 9876543210")
-    orchestrator.handle(cid, "Ada")
     result = orchestrator.handle(cid, "Noida")
     assert knowledge.queries == []
     assert result.lead_status == LeadStatus.CREATED
@@ -181,7 +181,7 @@ def test_guardrail_does_not_block_valid_knowledge() -> None:
     orchestrator, recorder, *_ = make_graph_stack(knowledge=knowledge)
     result = orchestrator.handle("g2", "What is the warranty policy?")
     assert result.mode == ChatMode.KNOWLEDGE
-    assert recorder.call_count == 1
+    assert recorder.generation_call_count == 1
 
 
 def test_tool_not_called_when_fields_missing() -> None:

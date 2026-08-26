@@ -74,7 +74,7 @@ def test_contextual_tiny_battery(production_hybrid) -> None:
     assert first.mode == ChatMode.KNOWLEDGE
     assert second.mode == ChatMode.KNOWLEDGE
     assert second.query_rewritten == "What is the battery life of TINY?"
-    assert recorder.call_count == 2
+    assert recorder.generation_call_count == 2
 
 
 def test_corpus_gaps_do_not_fabricate(production_hybrid) -> None:

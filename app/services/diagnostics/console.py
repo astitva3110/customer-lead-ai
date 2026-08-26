@@ -202,6 +202,10 @@ def _section_router(payload: dict[str, Any]) -> list[str]:
         f"product: {after.get('current_product') or before.get('current_product') or ''}",
         f"user_context: {user_context}",
         f"rewritten_query: {query.get('rewritten_query') or ''}",
+        f"semantic_router_used: {(payload.get('semantic_router') or {}).get('used')}",
+        f"semantic_router_route: {(payload.get('semantic_router') or {}).get('route') or ''}",
+        f"semantic_router_confidence: {(payload.get('semantic_router') or {}).get('confidence')}",
+        f"semantic_router_model: {(payload.get('semantic_router') or {}).get('model') or ''}",
         "",
     ]
 

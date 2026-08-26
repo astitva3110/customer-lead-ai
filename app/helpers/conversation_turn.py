@@ -59,8 +59,7 @@ OFFERED_CALLBACK_RE = re.compile(
     re.IGNORECASE,
 )
 OFFERED_SUPPORT_RE = re.compile(
-    r"support team|customer service|connect (?:you )?(?:with|to) (?:our |the )?support|"
-    r"further assistance",
+    r"support team|customer service|connect (?:you )?(?:with|to) (?:our |the )?support",
     re.IGNORECASE,
 )
 PHONE_REFUSAL_RE = re.compile(

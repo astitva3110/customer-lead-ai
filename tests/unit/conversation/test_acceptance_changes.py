@@ -122,5 +122,5 @@ def test_10_missing_rag_evidence_does_not_use_general_knowledge() -> None:
     result = orchestrator.handle("acc-10", "Who founded Earkart?")
     assert knowledge.queries
     assert result.response == INSUFFICIENT_INFORMATION_MESSAGE
-    assert llm.call_count == 0
+    assert llm.generation_call_count == 0
     assert result.sources == []

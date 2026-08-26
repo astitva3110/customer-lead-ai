@@ -5,6 +5,7 @@ import re
 from typing import Any
 
 _FENCE_RE = re.compile(r"^```(?:json)?\s*(.*?)\s*```$", re.DOTALL | re.IGNORECASE)
+_THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
 
 
 def strip_markdown_fence(text: str) -> str:
@@ -15,8 +16,12 @@ def strip_markdown_fence(text: str) -> str:
     return stripped
 
 
+def strip_think_blocks(text: str) -> str:
+    return _THINK_RE.sub("", text or "").strip()
+
+
 def extract_json_object(text: str) -> dict[str, Any] | None:
-    stripped = strip_markdown_fence(text)
+    stripped = strip_markdown_fence(strip_think_blocks(text))
     parsed = _load_object(stripped)
     if parsed is not None:
         return parsed

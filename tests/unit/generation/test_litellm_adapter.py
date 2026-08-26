@@ -102,3 +102,50 @@ def test_litellm_adapter_records_token_usage(monkeypatch) -> None:
         session.close()
     assert session.trace.observability["token_usage"]["input_tokens"] == 11
     assert session.trace.observability["token_usage"]["output_tokens"] == 7
+
+
+def test_complete_with_usage_does_not_write_generation_tokens(monkeypatch) -> None:
+    def fake_completion(**kwargs):
+        assert kwargs["metadata"]["generation_name"] == "semantic_router"
+        assert kwargs["tags"] == ["semantic_router", "routing"]
+        message = SimpleNamespace(content='{"route":"KNOWLEDGE"}')
+        choice = SimpleNamespace(message=message)
+        usage = SimpleNamespace(prompt_tokens=9, completion_tokens=4, total_tokens=13)
+        return SimpleNamespace(choices=[choice], usage=usage)
+
+    monkeypatch.setitem(sys.modules, "litellm", SimpleNamespace(completion=fake_completion))
+    from app.services.diagnostics.recorder import TraceSession
+
+    settings = Settings(generation_model="openai/Qwen/Qwen3-1.7B", generation_api_key="sk-test")
+    state = type(
+        "State",
+        (),
+        {
+            "conversation_id": "c1",
+            "conversation_goal": "",
+            "current_turn_intent": "",
+            "lead_stage": "",
+            "user_context": {},
+            "lead_workflow": "",
+            "support_workflow": "",
+            "awaiting_field": "",
+            "conversation_history": [],
+            "product": "",
+        },
+    )()
+    session = TraceSession.start(state, "hello")
+    try:
+        text, usage = LiteLLMProvider(settings).complete_with_usage(
+            "sys",
+            "user",
+            temperature=0.0,
+            max_tokens=192,
+            metadata={"generation_name": "semantic_router"},
+            tags=["semantic_router", "routing"],
+        )
+    finally:
+        session.close()
+    assert '"route"' in text
+    assert usage["total_tokens"] == 13
+    assert session.trace.generation == {}
+    assert session.trace.observability["token_usage"]["total_tokens"] == 13

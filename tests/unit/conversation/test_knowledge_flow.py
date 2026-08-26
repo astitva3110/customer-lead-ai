@@ -18,7 +18,7 @@ def test_simple_knowledge_query_does_not_rewrite() -> None:
     result = orchestrator.handle(None, "What is TINY?")
     assert result.mode == ChatMode.KNOWLEDGE
     assert knowledge.queries == ["What is TINY?"]
-    assert llm.call_count == 1
+    assert llm.generation_call_count == 1
     assert result.response
     assert result.sources
 
@@ -38,7 +38,7 @@ def test_retrieval_failure_uses_grounding_fallback_without_llm() -> None:
     orchestrator, *_ = make_orchestrator(knowledge=knowledge, llm=llm)
     result = orchestrator.handle(None, "What is Radius M16?")
     assert result.response == INSUFFICIENT_INFORMATION_MESSAGE
-    assert llm.call_count == 0
+    assert llm.generation_call_count == 0
     assert result.sources == []
 
 

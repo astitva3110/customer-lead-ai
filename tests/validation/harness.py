@@ -15,6 +15,7 @@ from app.graph.factory import build_conversation_orchestrator
 from app.providers.llm.litellm_provider import LiteLLMProvider
 
 from app.helpers.conversation_turn import is_greeting_only, is_short_no, is_short_yes
+from app.helpers.semantic_router import SEMANTIC_ROUTER_MARKER
 
 
 def conversation_stub_answer(user: str) -> str:
@@ -96,6 +97,14 @@ class RecordingLiteLLM:
     def call_count(self) -> int:
         return len(self.calls)
 
+    @property
+    def router_call_count(self) -> int:
+        return sum(1 for call in self.calls if _is_semantic_router_call(call))
+
+    @property
+    def generation_call_count(self) -> int:
+        return self.call_count - self.router_call_count
+
     def completion(self, **kwargs):
         self.calls.append(kwargs)
         if self.behavior == "timeout":
@@ -110,6 +119,19 @@ class RecordingLiteLLM:
             raise RuntimeError("NotFoundError: model not found")
         if self.behavior == "malformed":
             return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="not-json"))])
+        if _is_semantic_router_call(kwargs):
+            payload = {
+                "route": "KNOWLEDGE",
+                "product": None,
+                "sales_interest": False,
+                "diverge": False,
+                "sub_questions": [],
+                "confidence": 0.0,
+            }
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(payload)))],
+                usage=SimpleNamespace(prompt_tokens=8, completion_tokens=16, total_tokens=24),
+            )
         user = kwargs["messages"][1]["content"]
         if "[SOURCE_ID:" not in user:
             payload = {"answer": conversation_stub_answer(user)}
@@ -139,6 +161,15 @@ class RecordingLiteLLM:
         return SimpleNamespace(
             choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(payload)))]
         )
+
+
+def _is_semantic_router_call(kwargs: dict[str, Any]) -> bool:
+    messages = kwargs.get("messages") or []
+    if not messages:
+        return False
+    first = messages[0]
+    content = first.get("content") if isinstance(first, dict) else getattr(first, "content", "")
+    return SEMANTIC_ROUTER_MARKER in str(content or "")
 
 
 def install_litellm(monkeypatch, recorder: RecordingLiteLLM):

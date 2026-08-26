@@ -312,7 +312,9 @@ def test_22_no_rag_conversational_turns() -> None:
     thanks = orchestrator.handle(cid, "thanks")
     assert knowledge.queries == []
     assert thanks.response
-    temps = [call["temperature"] for call in recorder.calls]
+    from tests.validation.harness import _is_semantic_router_call
+
+    temps = [call["temperature"] for call in recorder.calls if not _is_semantic_router_call(call)]
     assert temps
     assert all(temp == 0.4 for temp in temps)
 
@@ -361,8 +363,8 @@ def test_ok_what_is_tiny_during_sales_keeps_goal_and_runs_rag() -> None:
     assert asked.product == "TINY"
     assert asked.current_turn_intent == TurnIntent.KNOWLEDGE
     assert asked.trace.get("should_retrieve") is True
-    assert asked.query_rewritten == "what is tiny"
-    assert knowledge.queries[-1] == "what is tiny"
+    assert asked.query_rewritten == "what is TINY"
+    assert knowledge.queries[-1] == "what is TINY"
     assert asked.trace.get("generation_temperature") == 0.0
     assert asked.trace.get("grounded") is True
     assert recorder.calls[-1]["temperature"] == 0.0

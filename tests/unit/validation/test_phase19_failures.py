@@ -60,5 +60,5 @@ def test_llm_timeout_fail_closed() -> None:
     result = orchestrator.handle("fail-llm", "What is TINY?")
     assert result.mode == "KNOWLEDGE"
     assert "enough information" in result.response.lower()
-    assert recorder.call_count == 1
+    assert recorder.call_count >= 1
     assert result.sources == []

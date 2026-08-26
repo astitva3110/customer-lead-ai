@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import logging
 import re
+import time
 
+from app.config import settings
 from app.services.conversation.models import (
     ChatMode,
     ConversationGoal,
@@ -12,6 +15,7 @@ from app.services.conversation.models import (
     TicketStatus,
     TurnIntent,
 )
+from app.helpers.workflow_resume import is_active_lead_collection
 from app.services.conversation.query_rewriter import extract_product, routing_query
 from app.interfaces.providers.llm import LLMProvider
 from app.helpers.conversation_extract import (
@@ -59,7 +63,25 @@ from app.helpers.state_manager import (
     turn_intent_from_status,
 )
 from app.helpers.query_normalize import looks_like_informational_question, looks_like_knowledge_request
-from app.services.diagnostics.recorder import current_trace, record_turn_understanding
+from app.helpers.semantic_router import (
+    SEMANTIC_ROUTER_SYSTEM,
+    apply_mixed_knowledge_override,
+    build_semantic_router_prompt,
+    parse_semantic_route,
+    recovery_user_prompt,
+    semantic_fallback_reason,
+    understanding_from_semantic,
+)
+from app.services.diagnostics.recorder import current_trace, record_semantic_router, record_turn_understanding
+
+logger = logging.getLogger(__name__)
+
+_OPERATIONAL_INTENTS = {
+    TurnIntent.SUPPORT_INTENT,
+    TurnIntent.PROVIDE_INFORMATION,
+    TurnIntent.CONFIRMATION,
+    TurnIntent.ACTION,
+}
 
 LEAD_PATTERNS = (
     r"contact me",
@@ -158,6 +180,12 @@ def _lead_completed(state: ConversationState) -> bool:
     return state.lead_status == LeadStatus.CREATED
 
 
+def _sum_tokens(left, right) -> int | None:
+    if left is None and right is None:
+        return None
+    return int(left or 0) + int(right or 0)
+
+
 def _in_support_context(state: ConversationState) -> bool:
     return (
         state.conversation_goal == ConversationGoal.SUPPORT
@@ -173,20 +201,176 @@ class ChatRouter:
     def __init__(self, llm: LLMProvider | None = None) -> None:
         self._llm = llm
 
+    def _semantic_skip_reason(self, state: ConversationState, understanding) -> str | None:
+        if not bool(getattr(settings, "semantic_router_enabled", True)):
+            return "disabled"
+        if not self._llm or not getattr(self._llm, "is_configured", False):
+            return "llm_unconfigured"
+        if state.awaiting_field and understanding.turn_intent in {
+            TurnIntent.PROVIDE_INFORMATION,
+            TurnIntent.CONFIRMATION,
+            TurnIntent.CONTEXT_UPDATE,
+        }:
+            return "field_collection"
+        if understanding.turn_intent in _OPERATIONAL_INTENTS:
+            return "operational_turn"
+        if understanding.turn_intent == TurnIntent.MIXED and understanding.support_intent:
+            return "support_mixed"
+        return None
+
+    def _apply_semantic_router(self, state: ConversationState, phrase):
+        skip = self._semantic_skip_reason(state, phrase)
+        if skip:
+            return None
+        started = time.perf_counter()
+        recovery = False
+        error_text = ""
+        raw = ""
+        usage: dict = {}
+        parsed = None
+        try:
+            raw, usage = self._complete_semantic(state, recovery=False)
+            parsed = parse_semantic_route(raw)
+            if parsed is None:
+                recovery = True
+                raw, usage = self._merge_usage(usage, *self._complete_semantic(state, recovery=True, previous=raw))
+                parsed = parse_semantic_route(raw)
+        except Exception as exc:
+            error_text = type(exc).__name__
+            logger.warning("semantic router failed: %s", exc)
+        latency_ms = (time.perf_counter() - started) * 1000
+        threshold = float(getattr(settings, "semantic_router_confidence_threshold", 0.7) or 0.7)
+        if parsed is not None:
+            parsed = apply_mixed_knowledge_override(parsed, phrase, state)
+        fallback = semantic_fallback_reason(parsed, phrase, state, threshold=threshold)
+        used = fallback is None and parsed is not None
+        record = {
+            "executed": True,
+            "model": getattr(settings, "generation_model", "") or "",
+            "original_query": state.user_message or "",
+            "normalized_query": routing_query(state),
+            "output": parsed.to_dict() if parsed else None,
+            "raw_output": (raw or "")[:500],
+            "route": parsed.route if parsed else None,
+            "product": parsed.product if parsed else None,
+            "sales_interest": parsed.sales_interest if parsed else None,
+            "diverge": parsed.diverge if parsed else None,
+            "sub_questions": list(parsed.sub_questions) if parsed else [],
+            "confidence": parsed.confidence if parsed else None,
+            "used": used,
+            "fallback_reason": fallback or error_text or None,
+            "recovery_attempted": recovery,
+            "input_tokens": usage.get("input_tokens"),
+            "output_tokens": usage.get("output_tokens"),
+            "total_tokens": usage.get("total_tokens"),
+            "latency_ms": round(latency_ms, 3),
+            "error": error_text or None,
+        }
+        state.trace = dict(state.trace or {})
+        state.trace["semantic_router"] = record
+        state.trace["semantic_router_used"] = used
+        state.trace["semantic_router_ms"] = round(latency_ms, 3)
+        if current_trace():
+            record_semantic_router(record)
+        if not used:
+            if fallback == "low_confidence":
+                logger.info(
+                    "semantic router low confidence=%.3f threshold=%.3f; using phrase router",
+                    (parsed.confidence if parsed else 0.0),
+                    threshold,
+                )
+            elif fallback:
+                logger.info("semantic router fallback: %s", fallback)
+            return None
+        if parsed.product and not state.product:
+            state.product = parsed.product
+        elif parsed.product:
+            state.product = parsed.product
+        if parsed.sales_interest or parsed.route == "LEAD":
+            state.sales_interest = True
+            state.lead_intent = True
+            if not state.conversation_goal or state.conversation_goal in {
+                ConversationGoal.NONE,
+                ConversationGoal.KNOWLEDGE,
+                "",
+            }:
+                state.conversation_goal = ConversationGoal.SALES
+        state.trace["diverge"] = parsed.diverge
+        state.trace["sub_questions"] = list(parsed.sub_questions)
+        if parsed.sub_questions:
+            state.trace["resolved_query"] = parsed.sub_questions[0]
+        state.trace["active_product"] = parsed.product or state.product or ""
+        return understanding_from_semantic(parsed, phrase, state)
+
+    def _complete_semantic(
+        self,
+        state: ConversationState,
+        *,
+        recovery: bool,
+        previous: str = "",
+    ) -> tuple[str, dict]:
+        user = build_semantic_router_prompt(state)
+        if recovery:
+            user = recovery_user_prompt(user, previous)
+        max_tokens = int(getattr(settings, "semantic_router_max_tokens", 192) or 192)
+        metadata = {
+            "generation_name": "semantic_router",
+            "ls_provider": "litellm",
+            "conversation_id": state.conversation_id or "",
+        }
+        tags = ["semantic_router", "routing"]
+        completer = getattr(self._llm, "complete_with_usage", None)
+        if callable(completer):
+            raw, usage = completer(
+                SEMANTIC_ROUTER_SYSTEM,
+                user,
+                temperature=0.0,
+                max_tokens=max_tokens,
+                metadata=metadata,
+                tags=tags,
+            )
+            return raw or "", dict(usage or {})
+        raw = self._llm.complete(
+            SEMANTIC_ROUTER_SYSTEM,
+            user,
+            temperature=0.0,
+            max_tokens=max_tokens,
+        )
+        return raw or "", {}
+
+    def _merge_usage(self, first: dict, raw: str, second: dict) -> tuple[str, dict]:
+        merged = {
+            "input_tokens": _sum_tokens(first.get("input_tokens"), second.get("input_tokens")),
+            "output_tokens": _sum_tokens(first.get("output_tokens"), second.get("output_tokens")),
+            "total_tokens": _sum_tokens(first.get("total_tokens"), second.get("total_tokens")),
+        }
+        return raw, merged
+
     def route(self, state: ConversationState) -> ConversationState:
         state.explicit_action = ""
         understanding = self._understand(state)
+        state.trace = dict(state.trace or {})
+        state.trace["phrase_router"] = understanding.to_dict()
+        semantic_used = self._apply_semantic_router(state, understanding)
+        if semantic_used:
+            understanding = semantic_used
         self._apply_understanding(state, understanding)
-        if self._should_refine(state, understanding):
-            refined = self._refine_with_llm(state)
-            if refined and refined.confidence >= understanding.confidence:
-                self._apply_understanding(state, refined, merge=True)
-                understanding = refined
-        if self._needs_state_manager(state, understanding):
-            managed = self._run_state_manager(state)
-            if managed:
-                self._apply_state_manager(state, managed)
-                understanding = self._understanding_from_state_manager(state, managed, understanding)
+        if not state.trace.get("semantic_router_used"):
+            if self._should_refine(state, understanding):
+                refined = self._refine_with_llm(state)
+                if refined and refined.confidence >= understanding.confidence:
+                    self._apply_understanding(state, refined, merge=True)
+                    understanding = refined
+            if self._needs_state_manager(state, understanding):
+                managed = self._run_state_manager(state)
+                if managed:
+                    self._apply_state_manager(state, managed)
+                    understanding = self._understanding_from_state_manager(state, managed, understanding)
+            else:
+                populate_deterministic_state_trace(
+                    state,
+                    needs_rag=bool((state.trace or {}).get("should_retrieve")),
+                )
         else:
             populate_deterministic_state_trace(
                 state,
@@ -205,7 +389,14 @@ class ChatRouter:
         state.trace["support_collection_active"] = bool(state.support_collection_active)
         state.trace["history_turn_count"] = len(state.conversation_history or [])
         if current_trace():
-            method = "llm" if state.trace.get("state_manager_llm") or state.trace.get("turn_understanding_llm") else "deterministic"
+            if state.trace.get("semantic_router_used"):
+                method = "semantic"
+            elif state.trace.get("state_manager_llm") or state.trace.get("turn_understanding_llm"):
+                method = "llm"
+            elif state.trace.get("semantic_router"):
+                method = "fallback"
+            else:
+                method = "deterministic"
             record_turn_understanding(understanding.to_dict(), method=method)
         return state
 
@@ -221,7 +412,22 @@ class ChatRouter:
                 confidence=0.95,
             )
         if is_short_yes(raw_message) and last_assistant:
-            if _in_support_context(state) or offered_support_help(last_assistant):
+            sales_callback = offered_callback(last_assistant) and not _lead_completed(state)
+            support_yes = _in_support_context(state) or offered_support_help(last_assistant)
+            prefer_sales = sales_callback and (
+                not support_yes
+                or state.conversation_goal in {ConversationGoal.LEAD, ConversationGoal.SALES}
+                or bool(re.search(r"\bsales\b", last_assistant, flags=re.IGNORECASE))
+            )
+            if prefer_sales:
+                return TurnUnderstanding(
+                    turn_intent=TurnIntent.ACTION,
+                    needs_rag=False,
+                    lead_intent=True,
+                    explicit_action="create_lead",
+                    confidence=0.93,
+                )
+            if support_yes:
                 return TurnUnderstanding(
                     turn_intent=TurnIntent.CONFIRMATION,
                     needs_rag=False,
@@ -229,7 +435,7 @@ class ChatRouter:
                     explicit_action="create_ticket" if (state.support_issue or offered_support_help(last_assistant)) and not state.awaiting_field else None,
                     confidence=0.9,
                 )
-            if offered_callback(last_assistant) and not _lead_completed(state):
+            if sales_callback:
                 return TurnUnderstanding(
                     turn_intent=TurnIntent.ACTION,
                     needs_rag=False,
@@ -325,6 +531,13 @@ class ChatRouter:
             )
         )
         issue_followup = bool(issue and in_support)
+        if is_active_lead_collection(state) and not in_support and not support_contact:
+            support_phrase = False
+            issue_followup = False
+            if not (
+                looks_like_ticket_request(message) or looks_like_ticket_request(raw_message)
+            ):
+                ticket = False
         name = extract_name(message)
         city = extract_city(message)
         phone = extract_phone_from_text(message, default_phone_region(state))
@@ -405,8 +618,23 @@ class ChatRouter:
             result = extract_and_validate_phone(updates["phone"] or "", default_phone_region(state))
             if result.valid:
                 apply_phone_to_state(state, result)
-        if updates.get("issue") and not state.support_issue:
-            state.support_issue = updates["issue"] or ""
+        if updates.get("issue"):
+            incoming = (updates["issue"] or "").strip()
+            existing = (state.support_issue or "").strip()
+            if incoming and incoming.lower() not in existing.lower():
+                state.support_issue = f"{existing}; {incoming}" if existing else incoming
+        if updates.get("product"):
+            incoming = updates["product"] or ""
+            message = routing_query(state) or (state.user_message or "")
+            product_switch = bool(
+                re.search(
+                    r"\b(?:better|instead of|changed my mind)\b",
+                    message,
+                    flags=re.IGNORECASE,
+                )
+            )
+            if incoming and (not state.product or product_switch):
+                state.product = incoming
         if understanding.user_context_updates:
             state.user_context = merge_user_context(state.user_context, understanding.user_context_updates)
         if understanding.lead_intent:

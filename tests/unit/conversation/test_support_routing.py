@@ -316,6 +316,61 @@ def test_contact_service_during_support_starts_ticket_not_lead() -> None:
     assert routed.trace.get("should_retrieve") is not True
 
 
+def test_yes_after_sales_offer_with_further_assistance_starts_lead() -> None:
+    """Sales copy often ends with 'further assistance'; that must not start a ticket."""
+    router = ChatRouter()
+    routed = router.route(
+        ConversationState(
+            user_message="yes",
+            product="Bluup",
+            conversation_goal=ConversationGoal.LEAD,
+            mode=ChatMode.LEAD,
+            lead_intent=True,
+            conversation_history=[
+                {"role": "user", "content": "i need to buy bluuppp"},
+                {
+                    "role": "assistant",
+                    "content": (
+                        "Nice to hear that! Bluup is a soft, noise-reducing earplug. "
+                        "I'd be happy to connect you with the sales team to help you decide. "
+                        "Just let me know if you need any further assistance!"
+                    ),
+                },
+            ],
+        )
+    )
+    assert routed.explicit_action == "create_lead"
+    assert routed.mode == ChatMode.LEAD
+    assert routed.conversation_goal != ConversationGoal.SUPPORT
+    assert routed.current_turn_intent != TurnIntent.SUPPORT_INTENT
+
+
+def test_issue_phrase_during_lead_collection_stays_lead() -> None:
+    router = ChatRouter()
+    routed = router.route(
+        ConversationState(
+            user_message="not working",
+            product="Bluup",
+            conversation_goal=ConversationGoal.SALES,
+            mode=ChatMode.LEAD,
+            lead_intent=True,
+            lead_collection_active=True,
+            user_name="Astitva",
+            phone="+911234567890",
+            awaiting_field="city",
+            conversation_history=[
+                {"role": "user", "content": "i need to buy Bluup"},
+                {"role": "assistant", "content": "I'd be happy to connect you with the sales team."},
+                {"role": "user", "content": "yes"},
+                {"role": "assistant", "content": "What name should our team use when they contact you?"},
+            ],
+        )
+    )
+    assert routed.mode == ChatMode.LEAD
+    assert routed.explicit_action != "create_ticket"
+    assert routed.conversation_goal != ConversationGoal.SUPPORT
+
+
 def test_yes_after_support_offer_collects_ticket_not_rag() -> None:
     router = ChatRouter()
     routed = router.route(

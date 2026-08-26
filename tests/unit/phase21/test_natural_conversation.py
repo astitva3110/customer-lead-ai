@@ -91,7 +91,7 @@ def test_5_why_buy_is_knowledge() -> None:
     result = orchestrator.handle("p21-5", "Why should I buy from Earkart?")
     assert result.mode == ChatMode.KNOWLEDGE
     assert result.conversation_goal == ConversationGoal.KNOWLEDGE
-    assert recorder.call_count == 1
+    assert recorder.generation_call_count == 1
     assert lead.leads == []
 
 

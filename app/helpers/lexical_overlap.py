@@ -43,8 +43,21 @@ _STOPWORDS = {
 }
 
 
+_TERM_SYNONYMS = {
+    "price": ("mrp", "cost"),
+    "cost": ("mrp", "price"),
+    "mrp": ("price", "cost"),
+}
+
+
 def tokenize_query_terms(text: str) -> list[str]:
     return [token for token in _TOKEN_PATTERN.findall(text.lower()) if token not in _STOPWORDS]
+
+
+def _term_in_haystack(term: str, haystack: set[str]) -> bool:
+    if term in haystack:
+        return True
+    return any(synonym in haystack for synonym in _TERM_SYNONYMS.get(term, ()))
 
 
 def lexical_coverage_score(query: str, text: str) -> float:
@@ -54,7 +67,7 @@ def lexical_coverage_score(query: str, text: str) -> float:
         return 0.0
     unique_terms = list(dict.fromkeys(query_terms))
     haystack = set(_TOKEN_PATTERN.findall(text.lower()))
-    hits = sum(1 for term in unique_terms if term in haystack)
+    hits = sum(1 for term in unique_terms if _term_in_haystack(term, haystack))
     return hits / len(unique_terms)
 
 
@@ -79,7 +92,11 @@ def idf_weighted_coverage_score(query: str, text: str, idf: dict[str, float], *,
     denom = sum(weights)
     if denom <= 0:
         return lexical_coverage_score(query, text)
-    numer = sum(weight for term, weight in zip(unique_terms, weights) if term in haystack)
+    numer = sum(
+        weight
+        for term, weight in zip(unique_terms, weights)
+        if _term_in_haystack(term, haystack)
+    )
     return numer / denom
 
 

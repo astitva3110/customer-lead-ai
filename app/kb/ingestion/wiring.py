@@ -3,22 +3,30 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 
 from app.config import settings
 from app.services.knowledge.embedding_service import EmbeddingService
 from app.services.knowledge.ingestion_service import IngestionService
 from app.kb.chunking.config import ChunkingConfig
+from app.kb.evaluation.retrieval_config import RetrievalConfig
 from app.kb.ingestion.adapters import DefaultExtractorFactory, Phase12DocumentChunker, StructuredContentCleaner
 from app.kb.ingestion.quality import ChunkQualityGate
 from app.kb.ingestion.storage import DocumentStorage
+
+_RETRIEVAL_CONFIG = Path(__file__).resolve().parents[3] / "configs" / "retrieval" / "v2.yaml"
 
 
 def default_embedding_service() -> EmbeddingService:
     from app.kb.embedding.config import EmbeddingConfig
     from app.kb.embedding.factory import create_embedding_provider
-    from app.kb.ingestion.indexing import Phase12VectorStore
+    from app.kb.ingestion.indexing import Phase12IndexIdentity, Phase12VectorStore
 
-    store = Phase12VectorStore()
+    retrieval = RetrievalConfig.from_yaml(_RETRIEVAL_CONFIG)
+    store = Phase12VectorStore(
+        table_name=retrieval.vector_table,
+        identity=Phase12IndexIdentity.from_retrieval_config(retrieval),
+    )
     store.ensure_schema()
     return EmbeddingService(create_embedding_provider(EmbeddingConfig.from_settings()), store)
 

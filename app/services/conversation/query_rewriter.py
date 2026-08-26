@@ -14,6 +14,15 @@ ATTRIBUTE_RE = re.compile(
     re.IGNORECASE,
 )
 COMPANY_RE = re.compile(r"\bearkart\b|\bcompany\b|\bclinic\b", re.IGNORECASE)
+CATALOG_SCOPE_RE = re.compile(
+    r"\b(?:all|every|each)\s+products?\b"
+    r"|\bproducts?\s+(?:that\s+)?(?:you|u)\s+have\b"
+    r"|\bthat\s+(?:you|u)\s+have\b"
+    r"|\b(?:catalog|pricelist|price\s*list)\b"
+    r"|\bavailable\s+products?\b",
+    re.IGNORECASE,
+)
+BLUUP_PLUS_RE = re.compile(r"\bbluup\s*\+", re.IGNORECASE)
 PHONE_LIKE_RE = re.compile(r"^\+?\d[\d\s\-()]{6,}\d$")
 TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*")
 
@@ -30,6 +39,7 @@ KNOWN_PRODUCTS = (
     "FORT ULTRA POWER",
     "FORT",
     "OMNI",
+    "Bluup+",
     "Bluup",
 )
 
@@ -41,10 +51,12 @@ PRODUCT_ALIASES = {
     "blup": "Bluup",
     "bluep": "Bluup",
     "bluupp": "Bluup",
+    "bluuppp": "Bluup",
     "omny": "OMNI",
 }
 
 SPELLING_FIXES = {
+    "prodcut": "product",
     "warrenty": "warranty",
     "waranty": "warranty",
     "warrantly": "warranty",
@@ -86,7 +98,8 @@ def routing_query(state: ConversationState) -> str:
 
 
 def extract_product(message: str) -> str:
-    lowered = message.lower()
+    folded = _fold_bluup_plus(message or "")
+    lowered = folded.lower()
     for name in KNOWN_PRODUCTS:
         if name.lower() in lowered:
             return name
@@ -117,6 +130,8 @@ def apply_named_product(state: ConversationState) -> None:
 
 def needs_rewrite(message: str, product: str) -> bool:
     if not product:
+        return False
+    if is_catalog_scope_query(message):
         return False
     if not PRONOUN_RE.search(message or ""):
         return False
@@ -164,14 +179,15 @@ class QueryRewriter:
         original = (state.user_message or "").strip()
         source = (state.query_rewritten or original).strip()
         trace = state.trace or {}
-        resolved = str(trace.get("resolved_query") or "").strip()
+        catalog_scope = is_catalog_scope_query(original)
+        resolved = "" if catalog_scope else str(trace.get("resolved_query") or "").strip()
         if resolved and resolved.lower() not in {original.lower(), source.lower()}:
             state.query_rewritten = resolved
             return state
         if resolved and resolved.lower() != original.lower():
             state.query_rewritten = resolved
             return state
-        sub_questions = trace.get("sub_questions") or []
+        sub_questions = [] if catalog_scope else (trace.get("sub_questions") or [])
         if sub_questions:
             first = str(sub_questions[0]).strip()
             if first and first.lower() != original.lower():
@@ -195,7 +211,7 @@ def normalize_for_routing(message: str, *, product: str = "") -> RewriteResult:
     original = (message or "").strip()
     if not original or PHONE_LIKE_RE.match(original):
         return RewriteResult(original_query=original, rewritten_query=original, confidence=1.0)
-    text = original
+    text = _fold_bluup_plus(original)
     confidence = 1.0
     entities: list[str] = []
 
@@ -252,8 +268,18 @@ def confirmation_knowledge_query(state: ConversationState) -> str:
     return ""
 
 
+def is_catalog_scope_query(message: str) -> bool:
+    return bool(CATALOG_SCOPE_RE.search(message or ""))
+
+
+def _fold_bluup_plus(text: str) -> str:
+    return BLUUP_PLUS_RE.sub("Bluup+", text)
+
+
 def should_bind_product(message: str, product: str) -> bool:
     if not product or not message:
+        return False
+    if is_catalog_scope_query(message):
         return False
     if product.lower() in message.lower():
         return False

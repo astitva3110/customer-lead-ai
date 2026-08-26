@@ -116,7 +116,7 @@ def test_i_knowledge_to_lead() -> None:
     orchestrator, recorder, lead, *_ = make_graph_stack(knowledge=FakeKnowledge())
     first = orchestrator.handle("p20-i", "What is TINY?")
     assert first.mode == ChatMode.KNOWLEDGE
-    assert recorder.call_count == 1
+    assert recorder.generation_call_count == 1
     second = orchestrator.handle("p20-i", "I want to buy it.")
     assert second.mode == ChatMode.LEAD
     assert second.conversation_goal == ConversationGoal.LEAD

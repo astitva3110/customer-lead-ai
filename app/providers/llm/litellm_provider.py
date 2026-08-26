@@ -21,6 +21,25 @@ class LiteLLMProvider:
         temperature: float | None = None,
         max_tokens: int | None = None,
     ) -> str:
+        text, usage = self.complete_with_usage(
+            system,
+            user,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        self._record_generation_tokens(usage)
+        return text
+
+    def complete_with_usage(
+        self,
+        system: str,
+        user: str,
+        *,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        metadata: dict | None = None,
+        tags: list[str] | None = None,
+    ) -> tuple[str, dict]:
         if not self.is_configured:
             raise RuntimeError("generation model is not configured")
         import litellm
@@ -58,20 +77,29 @@ class LiteLLMProvider:
             extra_body = json.loads(extra_raw)
             if extra_body:
                 kwargs["extra_body"] = extra_body
+        if metadata:
+            kwargs["metadata"] = metadata
+        if tags:
+            kwargs["tags"] = tags
         response = litellm.completion(**kwargs)
+        usage = usage_payload(getattr(response, "usage", None))
         trace = current_trace()
         if trace is not None:
-            usage = usage_payload(getattr(response, "usage", None))
             add_token_usage(trace, usage)
-            generation = dict(trace.generation or {})
-            if usage.get("input_tokens") is not None:
-                generation["input_token_count"] = int(
-                    (generation.get("input_token_count") or 0) + usage["input_tokens"]
-                )
-            if usage.get("output_tokens") is not None:
-                generation["output_token_count"] = int(
-                    (generation.get("output_token_count") or 0) + usage["output_tokens"]
-                )
-            trace.generation = generation
         content = response.choices[0].message.content
-        return content or ""
+        return content or "", usage
+
+    def _record_generation_tokens(self, usage: dict) -> None:
+        trace = current_trace()
+        if trace is None or not usage:
+            return
+        generation = dict(trace.generation or {})
+        if usage.get("input_tokens") is not None:
+            generation["input_token_count"] = int(
+                (generation.get("input_token_count") or 0) + usage["input_tokens"]
+            )
+        if usage.get("output_tokens") is not None:
+            generation["output_token_count"] = int(
+                (generation.get("output_token_count") or 0) + usage["output_tokens"]
+            )
+        trace.generation = generation

@@ -1,5 +1,11 @@
 from app.services.conversation.models import ConversationState
-from app.services.conversation.query_rewriter import QueryRewriter, needs_rewrite, rewrite_query
+from app.services.conversation.query_rewriter import (
+    QueryRewriter,
+    extract_product,
+    needs_rewrite,
+    rewrite_query,
+    should_bind_product,
+)
 from app.helpers.query_normalize import canonicalize_knowledge_query
 
 
@@ -42,6 +48,32 @@ def test_buy_intent_is_not_turned_into_what_is() -> None:
     state = ConversationState(user_message="I want to buy TINY.")
     QueryRewriter().apply(state)
     assert state.query_rewritten == ""
+
+
+def test_catalog_price_question_does_not_bind_active_product() -> None:
+    assert not should_bind_product(
+        "give me the price of product that u have in earkart",
+        "Bluup",
+    )
+    state = ConversationState(
+        user_message="give me the price of prodcut that u have in earkart",
+        product="Bluup",
+        query_rewritten="",
+        trace={
+            "resolved_query": "Give me the price of prodcut Bluup u have in earkart",
+            "sub_questions": ["Give me the price of prodcut Bluup u have in earkart"],
+        },
+    )
+    QueryRewriter().apply(state)
+    assert "Bluup" not in (state.query_rewritten or state.user_message)
+
+
+def test_bluup_plus_is_distinct_from_bluup() -> None:
+    assert extract_product("what is the price of bluup +") == "Bluup+"
+    result = QueryRewriter().normalize(
+        ConversationState(user_message="what is the price of bluup +")
+    )
+    assert "Bluup+" in result.rewritten_query
 
 
 def test_tell_me_about_topic_strips_conversational_tail() -> None:

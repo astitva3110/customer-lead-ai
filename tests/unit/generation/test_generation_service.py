@@ -247,3 +247,35 @@ def test_converse_refuses_ungrounded_factual_questions() -> None:
     assert llm.call_count == 0
     assert result.response == INSUFFICIENT_INFORMATION_MESSAGE
 
+
+def test_think_wrapped_json_is_accepted() -> None:
+    raw = (
+        "<think>plan the answer</think>\n"
+        '{"grounded": true, "answer": "Earkart is a hearing-care platform.", "source_ids": ["chunk_1"]}'
+    )
+    service, llm = _service(raw)
+    result = service.generate("What is Earkart?", [_hit("chunk_1", "About Earkart...")])
+    assert llm.call_count == 1
+    assert result.grounded is True
+    assert result.source_ids == ["chunk_1"]
+
+
+def test_string_grounded_flag_is_accepted() -> None:
+    service, llm = _service(
+        json.dumps({"grounded": "true", "answer": "Earkart provides hearing care.", "source_ids": ["chunk_1"]})
+    )
+    result = service.generate("What is Earkart?", [_hit("chunk_1", "Earkart is a digital-first platform.")])
+    assert llm.call_count == 1
+    assert result.grounded is True
+
+
+def test_unique_source_id_prefix_is_resolved() -> None:
+    full = "357bd7c6b279d8a019c6b6b9e80b6fc4cc5097497f330a206a0d72e8000154fb"
+    service, llm = _service(
+        json.dumps({"grounded": True, "answer": "Bluup is a noise-reducing earplug.", "source_ids": [full[:12]]})
+    )
+    result = service.generate("what is Bluup", [_hit(full, "Bluup is a noise-reducing earplug.")])
+    assert llm.call_count == 1
+    assert result.grounded is True
+    assert result.source_ids == [full]
+

@@ -35,6 +35,25 @@ def test_system_prompt_requires_exact_source_ids() -> None:
     assert "invent source IDs" in GENERATION_SYSTEM_PROMPT
     assert "Never return a source ID that does not appear in the supplied context" in GENERATION_SYSTEM_PROMPT
     assert '"source_ids": ["chunk_about_earkart"]' in GENERATION_SYSTEM_PROMPT
+    assert "Section headings are evidence" in GENERATION_SYSTEM_PROMPT
+
+
+def test_source_block_puts_section_heading_in_content() -> None:
+    hit = RankedHit(
+        rank=1,
+        similarity=0.9,
+        chunk_id="chunk_bluup",
+        document_id="doc-1",
+        section_path=["tmpulktdi2p", "MRP: ₹ 2,900"],
+        token_count=8,
+        content_type="paragraph",
+        text="5.7.2 Bluup by earKART\nNoise Reduction: -28 dB",
+        page_number=1,
+        document_title="Pricelist",
+    )
+    prompt = build_generation_user_prompt("What is the price of Bluup?", [hit])
+    assert "MRP: ₹ 2,900" in prompt
+    assert prompt.index("Content:") < prompt.index("5.7.2 Bluup by earKART")
 
 
 def test_user_prompt_uses_stable_source_ids() -> None:

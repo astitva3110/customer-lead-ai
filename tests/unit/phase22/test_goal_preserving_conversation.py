@@ -111,6 +111,7 @@ def test_bind_product_for_attribute_questions() -> None:
     assert should_bind_product("what is the price?", "TINY")
     assert bind_product_query("what is the price?", "TINY") == "what is the price of TINY?"
     assert not should_bind_product("What is Earkart?", "TINY")
+    assert not should_bind_product("give me the price of product that u have", "TINY")
     state_msg = QueryRewriter()
     from app.services.conversation.models import ConversationState
 

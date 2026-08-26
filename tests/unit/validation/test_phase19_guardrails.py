@@ -24,4 +24,4 @@ def test_why_buy_routes_to_knowledge() -> None:
     orchestrator, recorder, *_ = make_graph_stack(knowledge=FakeKnowledge())
     result = orchestrator.handle("buy-q", "Why should I buy from Earkart?")
     assert result.mode == ChatMode.KNOWLEDGE
-    assert recorder.call_count == 1
+    assert recorder.generation_call_count == 1

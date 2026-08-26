@@ -23,6 +23,9 @@ Grounding rules (never relax these):
    exact question, mark grounded=false.
 8. If multiple chunks are required to answer the question, they may be
    combined only when the chunks collectively support the answer.
+   Section headings are evidence. A heading such as "MRP: ₹ 2,900" is the
+   price for the product named in that same chunk, not for a different
+   product in another chunk.
 9. Every source_id returned must correspond to a supplied context chunk.
 10. If sufficient evidence is unavailable, do not guess.
 11. Do not invent price, warranty, battery life, delivery, availability,
@@ -120,7 +123,8 @@ def format_source_block(hit: Any, *, max_chars: int = 4000) -> str:
     section = " / ".join(getattr(hit, "section_path", []) or [])
     if not title:
         title = section or getattr(hit, "document_id", "")
-    content = (getattr(hit, "text", "") or "")[:max_chars]
+    body = (getattr(hit, "text", "") or "").strip()
+    content = _content_with_heading(section, body)[:max_chars]
     source_id = getattr(hit, "chunk_id", "")
     return (
         f"[SOURCE_ID: {source_id}]\n"
@@ -128,6 +132,17 @@ def format_source_block(hit: Any, *, max_chars: int = 4000) -> str:
         f"Section: {section}\n"
         f"Content:\n{content}"
     )
+
+
+def _content_with_heading(section: str, body: str) -> str:
+    heading = section.strip()
+    if not heading:
+        return body
+    if heading.lower() in body.lower():
+        return body
+    if not body:
+        return heading
+    return f"{heading}\n\n{body}"
 
 
 def build_generation_user_prompt(

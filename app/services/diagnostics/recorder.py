@@ -130,6 +130,7 @@ class TraceSession:
             "rewrite_ms": flags.get("query_rewrite_ms") if (self.trace.query or {}).get("rewrite_executed") else (
                 flags.get("query_rewrite_ms") if flags.get("query_rewrite_ms") is not None else None
             ),
+            "semantic_router_ms": flags.get("semantic_router_ms") or (self.trace.semantic_router or {}).get("latency_ms"),
             "retrieval_ms": flags.get("retrieval_ms"),
             "generation_ms": flags.get("generation_ms"),
             "tool_ms": flags.get("tool_ms"),
@@ -174,6 +175,8 @@ class TraceSession:
             }
         else:
             self.trace.turn_understanding["user_context"] = redact_mapping(state.user_context or {})
+        if not self.trace.semantic_router and flags.get("semantic_router"):
+            self.trace.semantic_router = dict(flags.get("semantic_router") or {})
         if meta.get("retrieval_version") and not self.trace.retrieval.get("corpus_version"):
             self.trace.retrieval.setdefault("corpus_version", meta.get("retrieval_version"))
         del meta
@@ -210,6 +213,33 @@ def record_turn_understanding(payload: dict[str, Any], *, method: str) -> None:
         "user_context_updates": redact_mapping(payload.get("user_context_updates") or {}),
         "user_context": redact_mapping(payload.get("user_context") or payload.get("user_context_updates") or {}),
         "method": method,
+    }
+
+
+def record_semantic_router(payload: dict[str, Any]) -> None:
+    trace = current_trace()
+    if not trace:
+        return
+    trace.semantic_router = {
+        "executed": bool(payload.get("executed", True)),
+        "model": payload.get("model") or getattr(settings, "generation_model", "") or "",
+        "original_query": redact_text(str(payload.get("original_query") or "")),
+        "normalized_query": redact_text(str(payload.get("normalized_query") or "")),
+        "output": payload.get("output"),
+        "route": payload.get("route"),
+        "product": payload.get("product"),
+        "sales_interest": payload.get("sales_interest"),
+        "diverge": payload.get("diverge"),
+        "sub_questions": list(payload.get("sub_questions") or []),
+        "confidence": payload.get("confidence"),
+        "used": bool(payload.get("used")),
+        "fallback_reason": payload.get("fallback_reason"),
+        "recovery_attempted": bool(payload.get("recovery_attempted")),
+        "input_tokens": payload.get("input_tokens"),
+        "output_tokens": payload.get("output_tokens"),
+        "total_tokens": payload.get("total_tokens"),
+        "latency_ms": payload.get("latency_ms"),
+        "error": payload.get("error"),
     }
 
 

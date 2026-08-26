@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from sqlalchemy import create_engine, func, select, text
+from sqlalchemy import create_engine, delete, func, select, text
 from sqlalchemy.orm import sessionmaker
 
 from app.config import settings
@@ -45,18 +45,36 @@ class Phase12IndexIdentity:
             embedding_dimension=settings.embedding_dimension,
         )
 
+    @classmethod
+    def from_retrieval_config(cls, config) -> Phase12IndexIdentity:
+        return cls(
+            kb_dataset_version=config.kb_dataset_version,
+            chunking_algorithm_version=config.chunking_algorithm_version,
+            embedding_input_manifest=config.embedding_input_manifest,
+            embedding_version=config.embedding_version,
+            embedding_provider=settings.embedding_provider,
+            embedding_model=config.embedding_model,
+            embedding_model_revision=config.embedding_revision,
+            embedding_dimension=settings.embedding_dimension,
+        )
+
 
 class Phase12VectorStore:
     """Version-isolated PGVector store — does not touch V1 chunk_embeddings table."""
 
-    def __init__(self, database_url: str | None = None, table_name: str | None = None) -> None:
+    def __init__(
+        self,
+        database_url: str | None = None,
+        table_name: str | None = None,
+        identity: Phase12IndexIdentity | None = None,
+    ) -> None:
         self.database_url = database_url or settings.database_url
         self.table_name = table_name or settings.phase12_vector_table
         self.dimension = settings.embedding_dimension
         self.engine = create_engine(self.database_url)
         self._model = create_phase12_chunk_embedding_table(self.table_name, self.dimension)
         self._session_factory = sessionmaker(bind=self.engine, expire_on_commit=False)
-        self.identity = Phase12IndexIdentity.from_settings()
+        self.identity = identity or Phase12IndexIdentity.from_settings()
 
     def ensure_schema(self) -> None:
         with self.engine.begin() as conn:
@@ -79,6 +97,26 @@ class Phase12VectorStore:
                 self._model.embedding_version == self.identity.embedding_version,
             )
             return session.execute(stmt).first() is not None
+
+    def replace_document_vectors(self, document_id: str) -> int:
+        """Remove every vector for this document in this table so leftover chunks cannot mix."""
+        with self._session_factory() as session:
+            result = session.execute(
+                delete(self._model).where(self._model.document_id == document_id)
+            )
+            session.commit()
+            return int(result.rowcount or 0)
+
+    def purge_other_embedding_versions(self) -> int:
+        """Keep only the live embedding version in this table."""
+        with self._session_factory() as session:
+            result = session.execute(
+                delete(self._model).where(
+                    self._model.embedding_version != self.identity.embedding_version
+                )
+            )
+            session.commit()
+            return int(result.rowcount or 0)
 
     def count(self, *, embedding_version: str | None = None) -> int:
         with self._session_factory() as session:
@@ -216,22 +254,8 @@ class Phase12VectorStore:
             raise ValueError("chunks and embeddings length mismatch")
         inserted = 0
         with self._session_factory() as session:
+            session.execute(delete(self._model).where(self._model.document_id == record.document_id))
             for index, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
-                existing = session.execute(
-                    select(self._model).where(
-                        self._model.chunk_id == chunk.chunk_id,
-                        self._model.embedding_version == self.identity.embedding_version,
-                    )
-                ).scalar_one_or_none()
-                if existing:
-                    if force:
-                        existing.embedding = embedding
-                        existing.embedding_input_hash = chunk.embedding_input_hash
-                        existing.content = postgres_safe_text(chunk.content)
-                        existing.section_path = chunk.section_path
-                        existing.embedded_at = datetime.now(timezone.utc)
-                        inserted += 1
-                    continue
                 row = self._model(
                     chunk_id=chunk.chunk_id,
                     document_id=chunk.document_id,
@@ -282,6 +306,8 @@ class Phase12EmbeddingIndexer:
         title: str,
         force: bool = False,
     ) -> tuple[int, int]:
+        self.store.purge_other_embedding_versions()
+        self.store.replace_document_vectors(record.document_id)
         if not force and self.store.document_vectors_exist(record.document_id, record.document_version):
             return 0, 0
         texts = [chunk.embedding_input for chunk in chunks]

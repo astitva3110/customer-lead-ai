@@ -23,6 +23,7 @@ class ChatTrace:
     errors: list[dict[str, Any]] = field(default_factory=list)
     llamaindex: dict[str, Any] = field(default_factory=dict)
     observability: dict[str, Any] = field(default_factory=dict)
+    semantic_router: dict[str, Any] = field(default_factory=dict)
 
     @property
     def trace_id(self) -> str:

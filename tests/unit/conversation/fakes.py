@@ -8,21 +8,44 @@ from app.repositories.memory_lead import InMemoryLeadAdapter
 from app.repositories.memory_ticket import InMemoryTicketAdapter
 from app.repositories.conversation import InMemoryConversationRepository
 from app.graph.factory import build_conversation_orchestrator
+from app.helpers.semantic_router import SEMANTIC_ROUTER_MARKER
 
 
 class RecordingLLM:
-    def __init__(self, output: str | None = None, *, configured: bool = True) -> None:
+    def __init__(self, output: str | None = None, *, configured: bool = True, router_output: str | None = None) -> None:
         self.output = output
+        self.router_output = router_output
         self.call_count = 0
+        self.router_call_count = 0
         self.is_configured = configured
         self.last_temperature: float | None = None
         self.last_user: str = ""
+        self.last_system: str = ""
+
+    @property
+    def generation_call_count(self) -> int:
+        return self.call_count - self.router_call_count
 
     def complete(self, system: str, user: str, *, temperature: float = 0.2, max_tokens: int | None = None) -> str:
-        del system, max_tokens
+        del max_tokens
         self.call_count += 1
         self.last_temperature = temperature
         self.last_user = user
+        self.last_system = system
+        if SEMANTIC_ROUTER_MARKER in (system or ""):
+            self.router_call_count += 1
+            if self.router_output is not None:
+                return self.router_output
+            return json.dumps(
+                {
+                    "route": "KNOWLEDGE",
+                    "product": None,
+                    "sales_interest": False,
+                    "diverge": False,
+                    "sub_questions": [],
+                    "confidence": 0.0,
+                }
+            )
         if self.output is not None:
             return self.output
         if "current_message" in user:

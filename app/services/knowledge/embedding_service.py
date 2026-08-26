@@ -33,6 +33,12 @@ class EmbeddingService:
         if not chunks:
             return EmbedIndexResult(embedded_count=0, inserted=0, committed=False)
         self.vectors.ensure_schema()
+        purge = getattr(self.vectors, "purge_other_embedding_versions", None)
+        if callable(purge):
+            purge()
+        replace = getattr(self.vectors, "replace_document_vectors", None)
+        if callable(replace):
+            replace(record.document_id)
         if not force and self.vectors.document_vectors_exist(record.document_id, record.document_version):
             return EmbedIndexResult(
                 embedded_count=0,

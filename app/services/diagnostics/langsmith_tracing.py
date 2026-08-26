@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 def configure_langsmith() -> None:
@@ -12,7 +15,11 @@ def configure_langsmith() -> None:
     api_key = str(getattr(settings, "langsmith_api_key", "") or "").strip()
     project = str(getattr(settings, "langsmith_project", "") or "").strip() or "earkart-chatbot"
     endpoint = str(getattr(settings, "langsmith_endpoint", "") or "").strip()
-    if not tracing or not api_key:
+    if not tracing:
+        logger.info("LangSmith tracing off (LANGSMITH_TRACING is false)")
+        return
+    if not api_key:
+        logger.warning("LangSmith tracing requested but LANGSMITH_API_KEY is empty")
         return
     os.environ["LANGSMITH_TRACING"] = "true"
     os.environ["LANGSMITH_API_KEY"] = api_key
@@ -24,6 +31,7 @@ def configure_langsmith() -> None:
         os.environ["LANGSMITH_ENDPOINT"] = endpoint
         os.environ["LANGCHAIN_ENDPOINT"] = endpoint
     _configure_litellm_callback()
+    logger.info("LangSmith tracing on project=%s endpoint=%s", project, endpoint or "default")
 
 
 def langsmith_enabled() -> bool:
