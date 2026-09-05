@@ -142,12 +142,11 @@ def test_09_short_yes_uses_previous_question() -> None:
     assert yes.response != first.response
     assert "would you like to know anything about tiny before" not in yes.response.lower()
     assert yes.conversation_goal == ConversationGoal.LEAD
-    assert yes.current_turn_intent == TurnIntent.KNOWLEDGE
-    assert yes.trace.get("should_retrieve") is True
-    assert knowledge.queries
-    assert "TINY" in knowledge.queries[-1]
+    assert yes.current_turn_intent == TurnIntent.CONFIRMATION
+    assert yes.trace.get("should_retrieve") is not True
+    assert not knowledge.queries
     assert lead.leads == []
-    assert recorder.calls[-1]["temperature"] == 0.0
+    assert recorder.calls[-1]["temperature"] == 0.4
 
 
 def test_10_short_no_uses_previous_question() -> None:

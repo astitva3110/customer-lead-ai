@@ -58,8 +58,12 @@ _ISSUE_HINTS = (
     "won't turn on",
     "wont turn on",
     "not turning on",
+    "not turning off",
+    "no turning",
     "doesn't turn on",
     "doesnt turn on",
+    "not turn on",
+    "not turn off",
     "won't charge",
     "not charging",
     "no sound",
@@ -84,6 +88,8 @@ def normalize_person_name(raw: str) -> str:
 
 
 def extract_name(message: str) -> str:
+    if re.search(r"\bwho(?:'s|\s+is)\b", message or "", flags=re.IGNORECASE):
+        return ""
     match = _NAME_RE.search(message or "")
     if not match:
         return ""
@@ -105,9 +111,29 @@ def extract_city(message: str) -> str:
     return city
 
 
+_TURN_ISSUE_RE = re.compile(
+    r"\b(?:not|no|won'?t|doesn'?t|isn'?t)\s+tur+n(?:ing)?\s+(?:on|off)\b",
+    re.IGNORECASE,
+)
+
+
+_PURCHASE_RE = re.compile(
+    r"want to (?:buy|purchase|order)|need to (?:buy|purchase|order)|"
+    r"like to (?:buy|purchase|order)|interested in buying|"
+    r"\bi(?:'ll| will) buy\b|\blet'?s buy\b",
+    re.IGNORECASE,
+)
+
+
+def looks_like_purchase_intent(message: str) -> bool:
+    return bool(_PURCHASE_RE.search(message or ""))
+
+
 def looks_like_issue(message: str) -> bool:
     lowered = (message or "").lower()
-    return any(token in lowered for token in _ISSUE_HINTS)
+    if any(token in lowered for token in _ISSUE_HINTS):
+        return True
+    return bool(_TURN_ISSUE_RE.search(message or ""))
 
 
 def extract_issue(message: str) -> str:

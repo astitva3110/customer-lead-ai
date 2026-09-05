@@ -52,6 +52,8 @@ class TraceSession:
             "trace_id": new_trace_id(),
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "user_message": redact_text(message),
+            "channel": str(getattr(state, "channel", "") or "web"),
+            "origin": str(getattr(state, "origin", "") or ""),
         }
         trace.state_before = {
             "conversation_goal": str(state.conversation_goal or ""),
@@ -225,9 +227,11 @@ def record_semantic_router(payload: dict[str, Any]) -> None:
         "model": payload.get("model") or getattr(settings, "generation_model", "") or "",
         "original_query": redact_text(str(payload.get("original_query") or "")),
         "normalized_query": redact_text(str(payload.get("normalized_query") or "")),
+        "canonical_query": redact_text(str(payload.get("canonical_query") or "")),
         "output": payload.get("output"),
         "route": payload.get("route"),
         "product": payload.get("product"),
+        "product_invalid": payload.get("product_invalid"),
         "sales_interest": payload.get("sales_interest"),
         "diverge": payload.get("diverge"),
         "sub_questions": list(payload.get("sub_questions") or []),
@@ -240,6 +244,7 @@ def record_semantic_router(payload: dict[str, Any]) -> None:
         "total_tokens": payload.get("total_tokens"),
         "latency_ms": payload.get("latency_ms"),
         "error": payload.get("error"),
+        "compare": payload.get("compare") or {},
     }
 
 

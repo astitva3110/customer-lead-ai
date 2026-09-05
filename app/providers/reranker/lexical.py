@@ -33,7 +33,9 @@ class LexicalOverlapReranker:
             ),
             reverse=True,
         )
-        return scored
+        if any((item.rerank_score or 0.0) > 0 for item in scored):
+            return [item for item in scored if (item.rerank_score or 0.0) > 0]
+        return []
 
 
 def _candidate_haystack(candidate: RetrievalCandidate) -> str:

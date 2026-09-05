@@ -140,7 +140,7 @@
       addMessage(text, "user");
       messageInput.value = "";
       try {
-        const body = { message: text };
+        const body = { message: text, source: "dashboard" };
         if (conversationId) body.conversation_id = conversationId;
         if (countrySelect.value) body.country = countrySelect.value;
         const res = await fetch("/chat", {

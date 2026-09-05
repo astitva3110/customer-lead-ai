@@ -1,4 +1,6 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.helpers.channel import ALL_ORIGINS, CHANNELS, normalize_channel, normalize_origin
 
 
 class ChatRequest(BaseModel):
@@ -6,6 +8,31 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
     country: str | None = None
     top_k: int = Field(default=5, ge=1, le=20)
+    channel: str | None = None
+    origin: str | None = None
+    source: str | None = None
+    phone: str | None = None
+    user_name: str | None = None
+
+    @field_validator("channel")
+    @classmethod
+    def validate_channel(cls, value: str | None) -> str | None:
+        if value is None or not str(value).strip():
+            return None
+        channel = normalize_channel(value)
+        if not channel:
+            raise ValueError(f"channel must be one of: {', '.join(sorted(CHANNELS))}")
+        return channel
+
+    @field_validator("origin", "source")
+    @classmethod
+    def validate_origin(cls, value: str | None) -> str | None:
+        if value is None or not str(value).strip():
+            return None
+        origin = normalize_origin(value)
+        if not origin:
+            raise ValueError(f"origin must be one of: {', '.join(sorted(ALL_ORIGINS))}")
+        return origin
 
 
 class SourceChunk(BaseModel):
@@ -23,6 +50,11 @@ class ChatResponse(BaseModel):
     answer: str
     sources: list[SourceChunk]
     debug_trace_id: str | None = None
+
+
+class ChannelInboundResponse(BaseModel):
+    accepted: bool = True
+    results: list[ChatResponse] = Field(default_factory=list)
 
 
 class DocumentUploadResponse(BaseModel):

@@ -126,6 +126,8 @@ def log_trace(state: ConversationState) -> None:
     safe = redact_trace(
         {
             "conversation_id": state.conversation_id,
+            "channel": state.channel,
+            "origin": state.origin,
             "mode": state.mode,
             "intent": state.intent,
             "conversation_goal": state.conversation_goal,

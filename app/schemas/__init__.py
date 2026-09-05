@@ -1,4 +1,5 @@
 from app.schemas.schema import (
+    ChannelInboundResponse,
     ChatConversationSummary,
     ChatDetailResponse,
     ChatLatency,
@@ -30,6 +31,7 @@ from app.schemas.schema import (
 )
 
 __all__ = [
+    "ChannelInboundResponse",
     "ChatConversationSummary",
     "ChatDetailResponse",
     "ChatLatency",

@@ -357,6 +357,8 @@ def apply_state_manager_result(state: ConversationState, result: StateManagerRes
         state.lead_stage = result.lead.status
     for key, value in result.lead.collected_fields.items():
         if key == "name" and value and not state.user_name:
+            if re.search(r"\bwho(?:'s|\s+is)\b", state.user_message or "", flags=re.IGNORECASE):
+                continue
             state.user_name = value
         elif key == "city" and value and not state.city:
             state.city = value

@@ -49,7 +49,7 @@ def test_lexical_overlap_reranker_prefers_term_matches() -> None:
     )
     assert ranked[0].chunk_id == "price"
     assert ranked[0].rerank_score is not None
-    assert ranked[0].rerank_score > (ranked[1].rerank_score or 0.0)
+    assert len(ranked) == 1
 
 
 def test_lexical_reranker_keeps_type_chunk_above_faq_boilerplate() -> None:

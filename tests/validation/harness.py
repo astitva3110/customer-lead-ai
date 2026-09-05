@@ -121,6 +121,7 @@ class RecordingLiteLLM:
             return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="not-json"))])
         if _is_semantic_router_call(kwargs):
             payload = {
+                "canonical_query": "",
                 "route": "KNOWLEDGE",
                 "product": None,
                 "sales_interest": False,

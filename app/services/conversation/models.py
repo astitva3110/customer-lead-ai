@@ -75,9 +75,23 @@ class LeadStage(StrEnum):
     COMPLETED = "COMPLETED"
 
 
+@dataclass(frozen=True)
+class InboundMessage:
+    message: str
+    conversation_id: str | None = None
+    channel: str = "web"
+    origin: str = ""
+    phone: str | None = None
+    user_name: str | None = None
+    country: str | None = None
+    external_user_id: str | None = None
+
+
 @dataclass
 class ConversationState:
     conversation_id: str = ""
+    channel: str = "web"
+    origin: str = ""
     user_message: str = ""
     conversation_history: list[dict[str, str]] = field(default_factory=list)
     intent: str = ""
@@ -128,6 +142,8 @@ class ConversationState:
     def to_dict(self) -> dict[str, Any]:
         return {
             "conversation_id": self.conversation_id,
+            "channel": self.channel,
+            "origin": self.origin,
             "user_message": self.user_message,
             "conversation_history": list(self.conversation_history),
             "intent": self.intent,

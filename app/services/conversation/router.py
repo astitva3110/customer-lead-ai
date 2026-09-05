@@ -65,6 +65,7 @@ from app.helpers.state_manager import (
 from app.helpers.query_normalize import looks_like_informational_question, looks_like_knowledge_request
 from app.helpers.semantic_router import (
     SEMANTIC_ROUTER_SYSTEM,
+    apply_canonical_query,
     apply_mixed_knowledge_override,
     build_semantic_router_prompt,
     parse_semantic_route,
@@ -75,13 +76,6 @@ from app.helpers.semantic_router import (
 from app.services.diagnostics.recorder import current_trace, record_semantic_router, record_turn_understanding
 
 logger = logging.getLogger(__name__)
-
-_OPERATIONAL_INTENTS = {
-    TurnIntent.SUPPORT_INTENT,
-    TurnIntent.PROVIDE_INFORMATION,
-    TurnIntent.CONFIRMATION,
-    TurnIntent.ACTION,
-}
 
 LEAD_PATTERNS = (
     r"contact me",
@@ -128,6 +122,8 @@ SUPPORT_PATTERNS = (
     r"won't turn on",
     r"wont turn on",
     r"not turning on",
+    r"not turning off",
+    r"no turning",
     r"need (?:help|assistance|assist)(?! choosing)",
     r"need assi?tance",
 )
@@ -212,10 +208,8 @@ class ChatRouter:
             TurnIntent.CONTEXT_UPDATE,
         }:
             return "field_collection"
-        if understanding.turn_intent in _OPERATIONAL_INTENTS:
+        if understanding.turn_intent in {TurnIntent.CONFIRMATION, TurnIntent.ACTION}:
             return "operational_turn"
-        if understanding.turn_intent == TurnIntent.MIXED and understanding.support_intent:
-            return "support_mixed"
         return None
 
     def _apply_semantic_router(self, state: ConversationState, phrase):
@@ -244,15 +238,18 @@ class ChatRouter:
             parsed = apply_mixed_knowledge_override(parsed, phrase, state)
         fallback = semantic_fallback_reason(parsed, phrase, state, threshold=threshold)
         used = fallback is None and parsed is not None
+        rewrite = dict((state.trace or {}).get("query_rewrite") or {})
         record = {
             "executed": True,
             "model": getattr(settings, "generation_model", "") or "",
             "original_query": state.user_message or "",
             "normalized_query": routing_query(state),
+            "canonical_query": parsed.canonical_query if parsed else None,
             "output": parsed.to_dict() if parsed else None,
             "raw_output": (raw or "")[:500],
             "route": parsed.route if parsed else None,
             "product": parsed.product if parsed else None,
+            "product_invalid": parsed.product_invalid if parsed else None,
             "sales_interest": parsed.sales_interest if parsed else None,
             "diverge": parsed.diverge if parsed else None,
             "sub_questions": list(parsed.sub_questions) if parsed else [],
@@ -265,11 +262,24 @@ class ChatRouter:
             "total_tokens": usage.get("total_tokens"),
             "latency_ms": round(latency_ms, 3),
             "error": error_text or None,
+            "compare": {
+                "rewriter_query": rewrite.get("rewritten_query"),
+                "rewriter_entities": list(rewrite.get("entities") or []),
+                "canonical_query": parsed.canonical_query if parsed else None,
+                "route": parsed.route if parsed else None,
+                "product": parsed.product if parsed else None,
+                "confidence": parsed.confidence if parsed else None,
+                "latency_ms": round(latency_ms, 3),
+                "input_tokens": usage.get("input_tokens"),
+                "output_tokens": usage.get("output_tokens"),
+                "total_tokens": usage.get("total_tokens"),
+            },
         }
         state.trace = dict(state.trace or {})
         state.trace["semantic_router"] = record
         state.trace["semantic_router_used"] = used
         state.trace["semantic_router_ms"] = round(latency_ms, 3)
+        state.trace["query_understanding_compare"] = record["compare"]
         if current_trace():
             record_semantic_router(record)
         if not used:
@@ -282,9 +292,8 @@ class ChatRouter:
             elif fallback:
                 logger.info("semantic router fallback: %s", fallback)
             return None
-        if parsed.product and not state.product:
-            state.product = parsed.product
-        elif parsed.product:
+        apply_canonical_query(state, parsed)
+        if parsed.product:
             state.product = parsed.product
         if parsed.sales_interest or parsed.route == "LEAD":
             state.sales_interest = True
@@ -299,6 +308,8 @@ class ChatRouter:
         state.trace["sub_questions"] = list(parsed.sub_questions)
         if parsed.sub_questions:
             state.trace["resolved_query"] = parsed.sub_questions[0]
+        elif parsed.canonical_query:
+            state.trace["resolved_query"] = parsed.canonical_query
         state.trace["active_product"] = parsed.product or state.product or ""
         return understanding_from_semantic(parsed, phrase, state)
 
@@ -312,7 +323,7 @@ class ChatRouter:
         user = build_semantic_router_prompt(state)
         if recovery:
             user = recovery_user_prompt(user, previous)
-        max_tokens = int(getattr(settings, "semantic_router_max_tokens", 192) or 192)
+        max_tokens = int(getattr(settings, "semantic_router_max_tokens", 256) or 256)
         metadata = {
             "generation_name": "semantic_router",
             "ls_provider": "litellm",
@@ -411,6 +422,8 @@ class ChatRouter:
                 needs_rag=False,
                 confidence=0.95,
             )
+        if is_short_yes(raw_message) and not last_assistant:
+            return TurnUnderstanding(turn_intent=TurnIntent.CONFIRMATION, needs_rag=False, confidence=0.85)
         if is_short_yes(raw_message) and last_assistant:
             sales_callback = offered_callback(last_assistant) and not _lead_completed(state)
             support_yes = _in_support_context(state) or offered_support_help(last_assistant)
@@ -432,7 +445,7 @@ class ChatRouter:
                     turn_intent=TurnIntent.CONFIRMATION,
                     needs_rag=False,
                     support_intent=True,
-                    explicit_action="create_ticket" if (state.support_issue or offered_support_help(last_assistant)) and not state.awaiting_field else None,
+                    explicit_action="create_ticket" if offered_support_help(last_assistant) and not state.awaiting_field else None,
                     confidence=0.9,
                 )
             if sales_callback:
@@ -455,7 +468,16 @@ class ChatRouter:
                     turn_intent=TurnIntent.CONFIRMATION,
                     needs_rag=False,
                     support_intent=True,
-                    explicit_action="create_ticket" if state.support_issue and not state.awaiting_field else None,
+                    explicit_action="create_ticket" if offered_support_help(last_assistant) and not state.awaiting_field else None,
+                    confidence=0.92,
+                )
+            if state.awaiting_field and (
+                state.lead_collection_active or state.mode == ChatMode.LEAD
+            ):
+                return TurnUnderstanding(
+                    turn_intent=TurnIntent.CONFIRMATION,
+                    needs_rag=False,
+                    lead_intent=True,
                     confidence=0.92,
                 )
             return TurnUnderstanding(
@@ -468,14 +490,7 @@ class ChatRouter:
             callback_offer = offered_callback(last_assistant)
             collecting = bool(state.awaiting_field) and not info_offer and not callback_offer
             if not collecting:
-                if (
-                    info_offer
-                    or is_tell_more(raw_message)
-                    or (
-                        state.product
-                        and state.conversation_goal in {ConversationGoal.LEAD, ConversationGoal.SALES}
-                    )
-                ):
+                if info_offer or is_tell_more(raw_message):
                     return TurnUnderstanding(
                         turn_intent=TurnIntent.KNOWLEDGE,
                         needs_rag=True,
@@ -569,6 +584,9 @@ class ChatRouter:
         elif looks_like_informational_question(message) or looks_like_informational_question(raw_message):
             intent = TurnIntent.KNOWLEDGE
             needs_rag = True
+        elif in_support:
+            intent = TurnIntent.SUPPORT_INTENT
+            needs_rag = False
         elif state.mode in {ChatMode.LEAD, ChatMode.SUPPORT} or state.conversation_goal in {
             ConversationGoal.LEAD,
             ConversationGoal.SALES,
@@ -587,7 +605,7 @@ class ChatRouter:
             turn_intent=intent,
             needs_rag=needs_rag,
             lead_intent=purchase_phrase or contact,
-            support_intent=support_phrase or ticket or issue_followup,
+            support_intent=support_phrase or ticket or issue_followup or intent == TurnIntent.SUPPORT_INTENT,
             information_updates={
                 "name": name or None,
                 "phone": phone[0] if phone else None,
@@ -717,11 +735,23 @@ class ChatRouter:
                 state.mode = ChatMode.KNOWLEDGE
             state.trace["should_retrieve"] = False
             state.trace["needs_natural_reply"] = True
+            if is_acknowledgement_only(state.user_message or "") and state.awaiting_field:
+                state.trace["needs_natural_reply"] = False
             if is_short_no(state.user_message or "") or is_phone_refusal(state.user_message or ""):
                 state.awaiting_field = ""
             return
 
-        if intent in {TurnIntent.PROVIDE_INFORMATION, TurnIntent.CONTEXT_UPDATE, TurnIntent.GENERAL}:
+        if intent == TurnIntent.GENERAL:
+            state.trace["should_retrieve"] = False
+            state.trace["needs_natural_reply"] = True
+            if not state.mode:
+                state.intent = ChatMode.KNOWLEDGE
+                state.mode = ChatMode.KNOWLEDGE
+            else:
+                state.intent = state.mode
+            return
+
+        if intent in {TurnIntent.PROVIDE_INFORMATION, TurnIntent.CONTEXT_UPDATE}:
             if understanding.explicit_action == "create_ticket":
                 state.conversation_goal = ConversationGoal.SUPPORT
                 state.support_intent = True
@@ -730,12 +760,6 @@ class ChatRouter:
                 state.mode = ChatMode.SUPPORT
                 if state.ticket_status == TicketStatus.IDLE:
                     state.ticket_status = TicketStatus.COLLECTING
-                return
-            if is_greeting_only(state.user_message or "") and not state.mode:
-                state.intent = ChatMode.KNOWLEDGE
-                state.mode = ChatMode.KNOWLEDGE
-                state.trace["should_retrieve"] = False
-                state.trace["needs_natural_reply"] = True
                 return
             if _lead_completed(state) and not understanding.lead_intent and not understanding.support_intent:
                 state.lead_collection_active = False
@@ -955,6 +979,8 @@ class ChatRouter:
             TurnIntent.LEAD_INTENT,
             TurnIntent.SUPPORT_INTENT,
             TurnIntent.MIXED,
+            TurnIntent.CONFIRMATION,
+            TurnIntent.ACTION,
         }:
             return False
         words = message.split()

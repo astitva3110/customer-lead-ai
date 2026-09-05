@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from app.services.conversation.orchestrator import ConversationOrchestrator
-from app.services.diagnostics.recorder import tracing_enabled
 from app.services.chat_history import ChatHistoryService
+from app.helpers.chat_api import chat_result_payload
 from app.helpers.chat_history import conversation_brief_payload, conversation_detail_payload
 from app.dependencies import get_chat_history_service, get_orchestrator, require_role
 from app.domain.entities import User, UserRole
@@ -15,7 +15,6 @@ from app.schemas import (
     ChatListResponse,
     ChatRequest,
     ChatResponse,
-    SourceChunk,
 )
 
 router = APIRouter(tags=["chat"])
@@ -38,25 +37,17 @@ def chat(
     request: ChatRequest,
     orchestrator: ConversationOrchestrator = Depends(get_orchestrator),
 ) -> ChatResponse:
-    result = orchestrator.handle(request.conversation_id, request.message, country=request.country)
-    payload: dict = {
-        "conversation_id": result.conversation_id,
-        "mode": result.mode or "KNOWLEDGE",
-        "response": result.response,
-        "answer": result.response,
-        "sources": [
-            SourceChunk(
-                url=str(source.get("url") or ""),
-                title=str(source.get("title") or ""),
-                score=float(source.get("score") or 0.0),
-            )
-            for source in result.sources
-        ],
-    }
-    trace_id = (result.trace or {}).get("trace_id")
-    if trace_id and tracing_enabled():
-        payload["debug_trace_id"] = trace_id
-    return ChatResponse(**payload)
+    result = orchestrator.handle(
+        request.conversation_id,
+        request.message,
+        country=request.country,
+        channel=request.channel,
+        origin=request.origin,
+        source=request.source,
+        phone=request.phone,
+        user_name=request.user_name,
+    )
+    return ChatResponse(**chat_result_payload(result))
 
 
 @router.get("/chats", response_model=ChatListResponse)

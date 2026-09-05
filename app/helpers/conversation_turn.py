@@ -142,11 +142,18 @@ def offered_product_information(assistant_text: str) -> bool:
 
 
 def offered_callback(assistant_text: str) -> bool:
-    return bool(OFFERED_CALLBACK_RE.search(assistant_text or ""))
+    text = assistant_text or ""
+    if re.search(r"whenever you(?:'re| are) ready", text, flags=re.IGNORECASE):
+        return False
+    return bool(OFFERED_CALLBACK_RE.search(text))
 
 
 def offered_support_help(assistant_text: str) -> bool:
     return bool(OFFERED_SUPPORT_RE.search(assistant_text or ""))
+
+
+def assistant_asked_question(assistant_text: str) -> bool:
+    return "?" in (assistant_text or "")
 
 
 def is_phone_refusal(message: str) -> bool:

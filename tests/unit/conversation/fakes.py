@@ -38,6 +38,7 @@ class RecordingLLM:
                 return self.router_output
             return json.dumps(
                 {
+                    "canonical_query": "",
                     "route": "KNOWLEDGE",
                     "product": None,
                     "sales_interest": False,

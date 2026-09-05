@@ -81,3 +81,51 @@ def test_tell_me_about_topic_strips_conversational_tail() -> None:
     state = ConversationState(user_message="Actually, tell me about BTE first.", product="TINY")
     QueryRewriter().apply(state)
     assert state.query_rewritten == "What is BTE?"
+
+
+def test_canonical_query_bypasses_second_pass_when_semantic_used() -> None:
+    state = ConversationState(
+        user_message="what is tinny warrenty?",
+        product="TINY",
+        trace={
+            "semantic_router_used": True,
+            "canonical_query": "What is the warranty of TINY?",
+        },
+    )
+    QueryRewriter().apply(state)
+    assert state.query_rewritten == "What is the warranty of TINY?"
+    assert state.trace.get("query_rewrite_bypassed") is True
+
+
+def test_apply_falls_back_without_canonical_query() -> None:
+    state = ConversationState(
+        user_message="What is its battery life?",
+        product="TINY",
+        trace={"semantic_router_used": True, "canonical_query": ""},
+    )
+    QueryRewriter().apply(state)
+    assert state.query_rewritten == "What is the battery life of TINY?"
+    assert state.trace.get("query_rewrite_bypassed") is not True
+
+
+def test_abte_splits_form_factor() -> None:
+    result = QueryRewriter().normalize(ConversationState(user_message="tell me about aBTE"))
+    assert "a BTE" in result.rewritten_query
+
+
+def test_person_alias_rohit_misa() -> None:
+    result = QueryRewriter().normalize(ConversationState(user_message="who is rohit misa"))
+    assert "Rohit Misra" in result.rewritten_query
+
+
+def test_yes_after_buy_does_not_rewrite_to_what_is_product() -> None:
+    state = ConversationState(
+        user_message="yes",
+        product="TINY",
+        conversation_history=[
+            {"role": "user", "content": "i want to buy tiny"},
+            {"role": "assistant", "content": "Absolutely! TINY is a great choice."},
+        ],
+    )
+    QueryRewriter().apply(state)
+    assert "What is TINY" not in (state.query_rewritten or "")

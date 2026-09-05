@@ -153,3 +153,15 @@ def test_committed_buyer_can_keep_asking_then_contact() -> None:
     assert contact.awaiting_field == "name"
     assert lead.leads == []
     assert "what name should we use" not in contact.response.lower()
+
+
+def test_repeat_buy_starts_lead_collection() -> None:
+    orchestrator, _, lead, *_ = _stack()
+    cid = "p22-2-repeat-buy"
+    first = orchestrator.handle(cid, "i want to buy tiny")
+    assert first.awaiting_field == ""
+    assert lead.leads == []
+    second = orchestrator.handle(cid, "i want to buy it")
+    assert second.conversation_goal == ConversationGoal.LEAD
+    assert second.awaiting_field == "name"
+    assert lead.leads == []

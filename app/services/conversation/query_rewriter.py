@@ -4,7 +4,12 @@ import re
 from dataclasses import asdict, dataclass, field
 from difflib import SequenceMatcher
 
-from app.helpers.conversation_turn import wants_more_product_info
+from app.helpers.conversation_turn import (
+    is_tell_more,
+    last_assistant_text,
+    offered_product_information,
+    wants_more_product_info,
+)
 from app.helpers.query_normalize import canonicalize_knowledge_query
 from app.services.conversation.models import ConversationGoal, ConversationState
 
@@ -48,6 +53,7 @@ PRODUCT_ALIASES = {
     "tiney": "TINY",
     "tiiny": "TINY",
     "tinyy": "TINY",
+    "tini": "TINY",
     "blup": "Bluup",
     "bluep": "Bluup",
     "bluupp": "Bluup",
@@ -66,6 +72,26 @@ SPELLING_FIXES = {
     "infomation": "information",
     "informaton": "information",
     "whant": "want",
+    "turining": "turning",
+    "turnin": "turning",
+    "turnning": "turning",
+    "docter": "doctor",
+}
+
+FORM_FACTOR_GLUED_RE = re.compile(r"\b[aA](?P<style>BTE|RIC|CIC|ITE|ITC|IIC)\b")
+FORM_FACTOR_WORD_RE = re.compile(r"\b(?P<style>abte|aric|acic|aite|aitc|aiic)\b", re.IGNORECASE)
+FORM_FACTOR_CANON = {
+    "abte": "BTE",
+    "aric": "RIC",
+    "acic": "CIC",
+    "aite": "ITE",
+    "aitc": "ITC",
+    "aiic": "IIC",
+}
+
+PERSON_ALIASES = {
+    "rohit misa": "Rohit Misra",
+    "rohit mishra": "Rohit Misra",
 }
 
 INFORMAL_FIXES = {
@@ -95,6 +121,47 @@ class RewriteResult:
 
 def routing_query(state: ConversationState) -> str:
     return (state.query_rewritten or state.user_message or "").strip()
+
+
+def product_family(name: str) -> str:
+    if name.startswith("Bluup"):
+        return "Bluup"
+    return name.split()[0]
+
+
+def compact_product_catalog() -> list[dict[str, object]]:
+    aliases_by: dict[str, list[str]] = {}
+    for alias, canonical in PRODUCT_ALIASES.items():
+        aliases_by.setdefault(canonical, []).append(alias)
+    catalog: list[dict[str, object]] = []
+    for name in KNOWN_PRODUCTS:
+        catalog.append(
+            {
+                "name": name,
+                "family": product_family(name),
+                "aliases": list(aliases_by.get(name, [])),
+            }
+        )
+    return catalog
+
+
+def resolve_catalog_product(value: str | None) -> str | None:
+    text = (value or "").strip()
+    if not text:
+        return None
+    lowered = text.lower()
+    for name in KNOWN_PRODUCTS:
+        if name.lower() == lowered:
+            return name
+    mapped = PRODUCT_ALIASES.get(lowered)
+    return mapped or None
+
+
+def usable_canonical_query(text: str | None) -> bool:
+    value = (text or "").strip()
+    if not value or len(value) > 400:
+        return False
+    return True
 
 
 def extract_product(message: str) -> str:
@@ -179,6 +246,13 @@ class QueryRewriter:
         original = (state.user_message or "").strip()
         source = (state.query_rewritten or original).strip()
         trace = state.trace or {}
+        if bool(trace.get("semantic_router_used")):
+            canonical = str(trace.get("canonical_query") or "").strip()
+            if usable_canonical_query(canonical):
+                state.query_rewritten = canonical
+                state.trace = dict(trace)
+                state.trace["query_rewrite_bypassed"] = True
+                return state
         catalog_scope = is_catalog_scope_query(original)
         resolved = "" if catalog_scope else str(trace.get("resolved_query") or "").strip()
         if resolved and resolved.lower() not in {original.lower(), source.lower()}:
@@ -225,6 +299,16 @@ def normalize_for_routing(message: str, *, product: str = "") -> RewriteResult:
         text = spelling
         confidence = min(confidence, spelling_conf)
 
+    factored, factor_conf = _expand_form_factors(text)
+    if factored != text:
+        text = factored
+        confidence = min(confidence, factor_conf)
+
+    people, people_conf = _replace_person_aliases(text)
+    if people != text:
+        text = people
+        confidence = min(confidence, people_conf)
+
     aliased, alias_conf, found = _replace_product_aliases(text)
     if aliased != text:
         text = aliased
@@ -263,7 +347,13 @@ def normalize_for_routing(message: str, *, product: str = "") -> RewriteResult:
 
 def confirmation_knowledge_query(state: ConversationState) -> str:
     product = state.product or ""
-    if product and wants_more_product_info(state.user_message or ""):
+    message = state.user_message or ""
+    if not product:
+        return ""
+    if is_tell_more(message):
+        return f"What is {product}?"
+    last = last_assistant_text(state)
+    if wants_more_product_info(message) and offered_product_information(last):
         return f"What is {product}?"
     return ""
 
@@ -274,6 +364,26 @@ def is_catalog_scope_query(message: str) -> bool:
 
 def _fold_bluup_plus(text: str) -> str:
     return BLUUP_PLUS_RE.sub("Bluup+", text)
+
+
+def _expand_form_factors(text: str) -> tuple[str, float]:
+    updated = FORM_FACTOR_GLUED_RE.sub(lambda match: f"a {match.group('style')}", text)
+
+    def _word(match: re.Match[str]) -> str:
+        style = FORM_FACTOR_CANON.get(match.group("style").lower())
+        return f"a {style}" if style else match.group(0)
+
+    updated = FORM_FACTOR_WORD_RE.sub(_word, updated)
+    return updated, (0.96 if updated != text else 1.0)
+
+
+def _replace_person_aliases(text: str) -> tuple[str, float]:
+    updated = text
+    for source, target in PERSON_ALIASES.items():
+        pattern = re.compile(rf"\b{re.escape(source)}\b", re.IGNORECASE)
+        if pattern.search(updated):
+            updated = pattern.sub(target, updated)
+    return updated, (0.94 if updated != text else 1.0)
 
 
 def should_bind_product(message: str, product: str) -> bool:

@@ -19,6 +19,8 @@ from app.services.generation.generation_service import GenerationService
 
 class GraphState(TypedDict, total=False):
     conversation_id: str
+    channel: str
+    origin: str
     user_message: str
     conversation_history: list[dict[str, str]]
     intent: str

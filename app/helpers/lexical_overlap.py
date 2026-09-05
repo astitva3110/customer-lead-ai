@@ -4,6 +4,16 @@ import math
 import re
 
 _TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
+_GLUED_STYLE_RE = re.compile(r"\b[aA](BTE|RIC|CIC|ITE|ITC|IIC)\b")
+_STYLE_WORD_RE = re.compile(r"\b(abte|aric|acic|aite|aitc|aiic)\b", re.IGNORECASE)
+_STYLE_CANON = {
+    "abte": "bte",
+    "aric": "ric",
+    "acic": "cic",
+    "aite": "ite",
+    "aitc": "itc",
+    "aiic": "iic",
+}
 _STOPWORDS = {
     "a",
     "about",
@@ -51,7 +61,12 @@ _TERM_SYNONYMS = {
 
 
 def tokenize_query_terms(text: str) -> list[str]:
-    return [token for token in _TOKEN_PATTERN.findall(text.lower()) if token not in _STOPWORDS]
+    expanded = _GLUED_STYLE_RE.sub(lambda match: f"a {match.group(1)}", text or "")
+    expanded = _STYLE_WORD_RE.sub(
+        lambda match: f"a {_STYLE_CANON.get(match.group(1).lower(), match.group(1))}",
+        expanded,
+    )
+    return [token for token in _TOKEN_PATTERN.findall(expanded.lower()) if token not in _STOPWORDS]
 
 
 def _term_in_haystack(term: str, haystack: set[str]) -> bool:

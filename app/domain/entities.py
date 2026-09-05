@@ -19,6 +19,12 @@ class RecordStatus(StrEnum):
     CLOSED = "closed"
 
 
+class ConversationChannel(StrEnum):
+    WEB = "web"
+    WHATSAPP = "whatsapp"
+    META = "meta"
+
+
 # Backward-compatible alias for existing imports during migration.
 LeadRecordStatus = RecordStatus
 

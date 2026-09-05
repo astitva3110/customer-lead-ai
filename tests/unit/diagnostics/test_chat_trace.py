@@ -44,6 +44,27 @@ def test_3_request_capture(monkeypatch, tmp_path: Path) -> None:
     assert payload["request"]["conversation_id"] == "diag-req"
     assert payload["request"]["user_message"] == "What is TINY?"
     assert payload["request"]["trace_id"] == result.trace["trace_id"]
+    assert payload["request"]["channel"] == "web"
+    assert payload["request"]["origin"] == ""
+
+
+def test_3b_request_captures_whatsapp_source(monkeypatch, tmp_path: Path) -> None:
+    _enable(monkeypatch, tmp_path)
+    orchestrator, *_ = make_orchestrator()
+    result = orchestrator.handle(
+        None,
+        "What is TINY?",
+        channel="whatsapp",
+        origin="whatsapp",
+        phone="9876543210",
+    )
+    payload = load_chat_trace(result.trace["trace_id"], tmp_path)
+    assert payload["request"]["channel"] == "whatsapp"
+    assert payload["request"]["origin"] == "whatsapp"
+    assert payload["request"]["conversation_id"].startswith("whatsapp:")
+    text = (tmp_path / f"{result.trace['trace_id']}.txt").read_text(encoding="utf-8")
+    assert "channel: whatsapp" in text
+    assert "origin: whatsapp" in text
 
 
 def test_4_state_redaction() -> None:

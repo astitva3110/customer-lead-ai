@@ -59,6 +59,29 @@ def test_yeah_in_support_stays_support_not_knowledge() -> None:
     assert routed.current_turn_intent != TurnIntent.KNOWLEDGE
     assert routed.trace.get("should_retrieve") is not True
     assert routed.conversation_goal == ConversationGoal.SUPPORT
+    assert routed.explicit_action != "create_ticket"
+
+
+def test_support_typo_followup_stays_support() -> None:
+    router = ChatRouter()
+    state = ConversationState(
+        user_message="not turining on",
+        product="TINY",
+        conversation_goal=ConversationGoal.SUPPORT,
+        mode=ChatMode.SUPPORT,
+        support_issue="hearing aid not working",
+        conversation_history=[
+            {"role": "user", "content": "hearing aid not working"},
+            {
+                "role": "assistant",
+                "content": "I'm sorry you're dealing with that. I'll help you work through it.",
+            },
+        ],
+    )
+    routed = router.route(state)
+    assert routed.current_turn_intent == TurnIntent.SUPPORT_INTENT
+    assert routed.conversation_goal == ConversationGoal.SUPPORT
+    assert routed.trace.get("should_retrieve") is not True
 
 
 def test_yes_plz_in_support_is_confirmation() -> None:
@@ -79,7 +102,7 @@ def test_yes_plz_in_support_is_confirmation() -> None:
     assert routed.trace.get("should_retrieve") is not True
 
 
-def test_yeah_after_buy_still_routes_to_knowledge_for_lead() -> None:
+def test_yeah_after_buy_stays_confirmation_not_knowledge() -> None:
     router = ChatRouter()
     state = ConversationState(
         user_message="yes",
@@ -89,6 +112,23 @@ def test_yeah_after_buy_still_routes_to_knowledge_for_lead() -> None:
         conversation_history=[
             {"role": "user", "content": "I want to buy TINY."},
             {"role": "assistant", "content": "Absolutely! TINY is a great choice."},
+        ],
+    )
+    routed = router.route(state)
+    assert routed.current_turn_intent == TurnIntent.CONFIRMATION
+    assert routed.trace.get("should_retrieve") is not True
+
+
+def test_yes_after_product_info_offer_routes_to_knowledge() -> None:
+    router = ChatRouter()
+    state = ConversationState(
+        user_message="yes",
+        product="TINY",
+        conversation_goal=ConversationGoal.SALES,
+        mode=ChatMode.LEAD,
+        conversation_history=[
+            {"role": "user", "content": "I want to buy TINY."},
+            {"role": "assistant", "content": "Would you like to know more about TINY, including features?"},
         ],
     )
     routed = router.route(state)

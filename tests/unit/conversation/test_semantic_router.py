@@ -21,6 +21,7 @@ from app.services.conversation.router import ChatRouter
 
 def _payload(**overrides) -> str:
     data = {
+        "canonical_query": "",
         "route": "KNOWLEDGE",
         "product": None,
         "sales_interest": False,
@@ -60,9 +61,17 @@ def _route(message: str, llm: ScriptedRouterLLM | None = None, **state_fields) -
 
 def test_parse_semantic_route_schema() -> None:
     parsed = parse_semantic_route(
-        _payload(route="KNOWLEDGE", product="TINY", sales_interest=True, diverge=False, sub_questions=["What is TINY's warranty?"])
+        _payload(
+            canonical_query="What is the warranty of TINY?",
+            route="KNOWLEDGE",
+            product="TINY",
+            sales_interest=True,
+            diverge=False,
+            sub_questions=["What is TINY's warranty?"],
+        )
     )
     assert parsed is not None
+    assert parsed.canonical_query == "What is the warranty of TINY?"
     assert parsed.route == "KNOWLEDGE"
     assert parsed.product == "TINY"
     assert parsed.sales_interest is True
@@ -71,8 +80,18 @@ def test_parse_semantic_route_schema() -> None:
 
 def test_parse_semantic_route_rejects_invalid() -> None:
     assert parse_semantic_route("not json") is None
-    assert parse_semantic_route('{"route": "SUPPORT"}') is None
+    assert parse_semantic_route('{"route": "CHAT"}') is None
     assert parse_semantic_route('{"answer": "hi"}') is None
+
+
+def test_parse_support_route_and_invalid_product() -> None:
+    support = parse_semantic_route(_payload(route="SUPPORT", product=None, canonical_query="My hearing aid is not working."))
+    assert support is not None
+    assert support.route == "SUPPORT"
+    invalid = parse_semantic_route(_payload(route="KNOWLEDGE", product="iPhone", canonical_query="What is iPhone?"))
+    assert invalid is not None
+    assert invalid.product is None
+    assert invalid.product_invalid is True
 
 
 def test_recovery_prompt_is_compact() -> None:
@@ -209,6 +228,7 @@ def test_lead_then_general_does_not_reset_sale() -> None:
     assert conversation_status_label(routed) == "SALE"
     assert routed.product == "TINY"
     assert routed.sales_interest is True
+    assert routed.trace.get("needs_natural_reply") is True
 
 
 def test_invalid_json_recovers_then_uses_second_payload() -> None:
@@ -274,3 +294,98 @@ def test_compare_phrase_and_semantic_on_clean_buy() -> None:
     assert phrase.product == semantic.product == "TINY"
     assert semantic.trace["semantic_router_used"] is True
     assert phrase.trace.get("semantic_router_used") is not True
+
+
+def test_catalog_is_in_system_prompt() -> None:
+    llm = ScriptedRouterLLM(_payload(route="KNOWLEDGE"))
+    _route("What products do you have?", llm)
+    assert "TINY" in llm.last_system
+    assert "tinny" in llm.last_system
+    assert "Bluup" in llm.last_system
+    assert '"current_status"' in llm.last_user
+    assert '"conversation_status"' in llm.last_user
+
+
+def test_connect_sales_is_lead() -> None:
+    routed = _route(
+        "Connect me to the sales team",
+        ScriptedRouterLLM(_payload(route="LEAD", product=None, sales_interest=True, canonical_query="Connect me to the sales team.")),
+    )
+    assert routed.mode == ChatMode.LEAD
+    assert routed.sales_interest is True
+
+
+def test_support_device_issue_uses_support_route() -> None:
+    routed = _route(
+        "My hearing aid is not working",
+        ScriptedRouterLLM(
+            _payload(
+                route="SUPPORT",
+                product=None,
+                sales_interest=False,
+                canonical_query="My hearing aid is not working.",
+            )
+        ),
+    )
+    assert routed.mode == ChatMode.SUPPORT
+    assert routed.current_turn_intent == "SUPPORT_INTENT"
+
+
+def test_catalog_question_keeps_product_null() -> None:
+    routed = _route(
+        "What products do you have?",
+        ScriptedRouterLLM(
+            _payload(
+                route="KNOWLEDGE",
+                product=None,
+                sales_interest=False,
+                canonical_query="What products do you have?",
+                sub_questions=["What products do you have?"],
+            )
+        ),
+        product="TINY",
+        conversation_goal=ConversationGoal.SALES,
+    )
+    assert routed.mode == ChatMode.KNOWLEDGE
+    assert routed.trace.get("should_retrieve") is True
+    assert routed.trace["semantic_router"]["product"] is None
+
+
+def test_how_are_you_during_lead_collection_is_general() -> None:
+    routed = _route(
+        "How are you?",
+        ScriptedRouterLLM(_payload(route="GENERAL", product="TINY", sales_interest=True)),
+        product="TINY",
+        conversation_goal=ConversationGoal.SALES,
+        mode=ChatMode.LEAD,
+        lead_intent=True,
+        sales_interest=True,
+        lead_collection_active=True,
+        awaiting_field="phone",
+        lead_status=LeadStatus.COLLECTING,
+        lead_stage=LeadStage.IN_PROGRESS,
+    )
+    assert current_status_label(routed) == "GENERAL"
+    assert conversation_status_label(routed) == "SALE"
+    assert routed.trace.get("needs_natural_reply") is True
+    assert routed.trace.get("should_retrieve") is False
+    assert routed.lead_collection_active is True
+
+
+def test_compare_log_includes_rewriter_and_qwen() -> None:
+    routed = _route(
+        "what is tinny warrenty?",
+        ScriptedRouterLLM(
+            _payload(
+                canonical_query="What is the warranty of TINY?",
+                route="KNOWLEDGE",
+                product="TINY",
+                sub_questions=["What is the warranty of TINY?"],
+            )
+        ),
+    )
+    compare = routed.trace["query_understanding_compare"]
+    assert compare["canonical_query"] == "What is the warranty of TINY?"
+    assert compare["route"] == "KNOWLEDGE"
+    assert compare["product"] == "TINY"
+    assert routed.query_rewritten == "What is the warranty of TINY?"

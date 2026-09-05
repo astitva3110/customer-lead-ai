@@ -15,7 +15,7 @@ class RuntimeSettings(BaseSettings):
     generation_model: str = ""
     generation_api_base: str = ""
     generation_api_key: str = ""
-    generation_temperature: float = 0.0
+    generation_temperature: float = 0.1
     generation_conversation_temperature: float = 0.4
     generation_max_tokens: int = 512
     generation_timeout_seconds: float = 60.0
@@ -27,7 +27,7 @@ class RuntimeSettings(BaseSettings):
     # Semantic router (reuses generation_model / Qwen 1.7B via LiteLLM)
     semantic_router_enabled: bool = True
     semantic_router_confidence_threshold: float = 0.7
-    semantic_router_max_tokens: int = 192
+    semantic_router_max_tokens: int = 256
 
     # Database — set DATABASE_URL in .env (never commit credentials)
     database_url: str = ""
@@ -41,6 +41,13 @@ class RuntimeSettings(BaseSettings):
 
     # Chat / lead
     default_country: str = ""
+
+    # Public web + channel webhooks (comma-separated origins; empty disables CORS)
+    cors_allow_origins: str = ""
+    channel_webhook_secret: str = ""
+    whatsapp_verify_token: str = ""
+    orai_send_url: str = ""
+    orai_api_key: str = ""
 
     # Hybrid retrieval (chat path)
     hybrid_retrieval_enabled: bool = True

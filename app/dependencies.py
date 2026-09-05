@@ -14,6 +14,7 @@ from app.kb.ingestion.wiring import build_ingestion_service
 from app.providers.llm.factory import get_llm_provider
 from app.services.auth_service import AuthService, bootstrap_initial_super_admin
 from app.services.chat_history import ChatHistoryService
+from app.services.channels.intake import ChannelIntake
 from app.services.conversation.orchestrator import ConversationOrchestrator
 from app.services.generation.generation_service import GenerationService
 from app.services.knowledge.ingestion_service import IngestionService
@@ -105,6 +106,12 @@ def get_user_repository():
 
     ensure_schema()
     return PostgresUserRepository(get_session_factory())
+
+
+def get_channel_intake(
+    orchestrator: ConversationOrchestrator = Depends(get_orchestrator),
+) -> ChannelIntake:
+    return ChannelIntake(orchestrator)
 
 
 @lru_cache

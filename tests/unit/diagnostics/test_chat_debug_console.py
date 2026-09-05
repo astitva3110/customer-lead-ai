@@ -19,6 +19,8 @@ REQUIRED_SECTIONS = [
     "CHAT DEBUG",
     "TRACE ID:",
     "CONVERSATION ID:",
+    "CHANNEL:",
+    "ORIGIN:",
     "USER MESSAGE:",
     "1. GUARDRAIL",
     "2. CONVERSATION / ROUTER",

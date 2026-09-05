@@ -28,10 +28,27 @@ class ConversationOrchestrator:
         conversation_id: str | None,
         message: str,
         country: str | None = None,
+        *,
+        channel: str | None = None,
+        origin: str | None = None,
+        source: str | None = None,
+        phone: str | None = None,
+        user_name: str | None = None,
     ) -> ConversationState:
-        cid = (conversation_id or "").strip() or str(uuid.uuid4())
+        from app.helpers.channel import apply_inbound_identity, resolve_conversation_id, resolve_request_source
+
+        resolved_channel, resolved_origin = resolve_request_source(channel, origin, source)
+        cid = resolve_conversation_id(conversation_id, resolved_channel or "web", phone)
+        cid = cid or str(uuid.uuid4())
         state = self._store.get(cid) or ConversationState(conversation_id=cid)
         state.conversation_id = cid
+        apply_inbound_identity(
+            state,
+            channel=resolved_channel,
+            origin=resolved_origin,
+            phone=phone,
+            user_name=user_name,
+        )
         state.user_message = message
         from app.config import settings
         from app.helpers.phone import normalize_region
@@ -55,6 +72,13 @@ class ConversationOrchestrator:
         try:
             payload = self._invoke_graph(state)
             result = ConversationState.from_dict(payload)
+            apply_inbound_identity(
+                result,
+                channel=resolved_channel,
+                origin=resolved_origin,
+                phone=phone,
+                user_name=user_name,
+            )
             result.trace = dict(result.trace or {})
             result.trace["total_latency_ms"] = round((time.perf_counter() - started) * 1000, 3)
             session.finish(result)

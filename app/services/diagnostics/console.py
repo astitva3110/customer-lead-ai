@@ -158,6 +158,8 @@ def _header(payload: dict[str, Any]) -> list[str]:
         "",
         f"TRACE ID: {payload.get('trace_id') or request.get('trace_id') or ''}",
         f"CONVERSATION ID: {request.get('conversation_id') or ''}",
+        f"CHANNEL: {request.get('channel') or ''}",
+        f"ORIGIN: {request.get('origin') or ''}",
         "USER MESSAGE:",
         redact_text(str(request.get("user_message") or "")),
         "",
@@ -204,8 +206,11 @@ def _section_router(payload: dict[str, Any]) -> list[str]:
         f"rewritten_query: {query.get('rewritten_query') or ''}",
         f"semantic_router_used: {(payload.get('semantic_router') or {}).get('used')}",
         f"semantic_router_route: {(payload.get('semantic_router') or {}).get('route') or ''}",
+        f"semantic_router_canonical_query: {(payload.get('semantic_router') or {}).get('canonical_query') or ''}",
         f"semantic_router_confidence: {(payload.get('semantic_router') or {}).get('confidence')}",
         f"semantic_router_model: {(payload.get('semantic_router') or {}).get('model') or ''}",
+        f"semantic_router_tokens: {(payload.get('semantic_router') or {}).get('total_tokens')}",
+        f"semantic_router_latency_ms: {(payload.get('semantic_router') or {}).get('latency_ms')}",
         "",
     ]
 

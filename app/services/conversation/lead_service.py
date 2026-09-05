@@ -4,7 +4,12 @@ import logging
 import time
 
 from app.domain.entities import Lead
-from app.helpers.conversation_extract import extract_city, extract_name, normalize_person_name
+from app.helpers.conversation_extract import (
+    extract_city,
+    extract_name,
+    looks_like_purchase_intent,
+    normalize_person_name,
+)
 from app.helpers.conversation_reply import lead_created_reply
 from app.helpers.conversation_turn import is_acknowledgement_only
 from app.helpers.phone import (
@@ -21,6 +26,18 @@ from app.services.conversation.query_rewriter import apply_named_product, extrac
 logger = logging.getLogger(__name__)
 
 LEAD_CREATED_MESSAGE = lead_created_reply()
+
+
+def _prior_user_purchase(state: ConversationState) -> bool:
+    current = (state.user_message or "").strip().lower()
+    for item in reversed(state.conversation_history or []):
+        if item.get("role") != "user":
+            continue
+        content = str(item.get("content") or "").strip()
+        if not content or content.lower() == current:
+            continue
+        return looks_like_purchase_intent(content)
+    return False
 
 
 def prompt_for_lead_field(
@@ -174,6 +191,8 @@ class LeadService:
         if state.awaiting_field:
             return True
         if state.lead_collection_active:
+            return True
+        if looks_like_purchase_intent(state.user_message or "") and _prior_user_purchase(state):
             return True
         return False
 
