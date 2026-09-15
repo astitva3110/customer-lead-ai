@@ -96,6 +96,56 @@ def test_user_cannot_access_admin_chat_history() -> None:
         assert client.get("/chats").status_code == 403
 
 
+def test_user_can_view_and_update_leads(monkeypatch) -> None:
+    user, _password = make_user(role=UserRole.USER)
+    lead = Lead(
+        lead_id=str(uuid4()),
+        name="Ada",
+        phone="+919876543210",
+        city="Noida",
+        country="IN",
+        product="TINY",
+        conversation_id="conv-1",
+        status=RecordStatus.OPEN,
+    )
+
+    class FakeLeadRepo:
+        def list_leads(self, *, limit: int, offset: int, status: RecordStatus | None = None):
+            del limit, offset, status
+            return [lead]
+
+        def get_lead(self, lead_id: str) -> Lead | None:
+            return lead if lead_id == lead.lead_id else None
+
+        def update_lead_status(self, lead_id: str, status: RecordStatus) -> Lead | None:
+            if lead_id != lead.lead_id:
+                return None
+            lead.status = status
+            return lead
+
+    class FakeTraceRepo:
+        def get_conversation(self, conversation_id: str):
+            del conversation_id
+            return None
+
+    from app.dependencies import get_lead_admin_service
+    from app.services.engagement_admin_service import LeadAdminService
+
+    app.dependency_overrides[get_lead_admin_service] = lambda: LeadAdminService(
+        FakeLeadRepo(), FakeTraceRepo()
+    )
+    try:
+        with user_repo([user]), as_user(user):
+            client = TestClient(app)
+            assert client.get("/leads").status_code == 200
+            assert client.get(f"/leads/{lead.lead_id}").status_code == 200
+            patch = client.patch(f"/leads/{lead.lead_id}", json={"status": "closed"})
+            assert patch.status_code == 200
+            assert patch.json()["status"] == "closed"
+    finally:
+        app.dependency_overrides.pop(get_lead_admin_service, None)
+
+
 def test_user_cannot_access_super_admin_user_creation() -> None:
     user, _password = make_user(role=UserRole.USER)
     with user_repo([user]), as_user(user):
@@ -183,6 +233,25 @@ def test_admin_cannot_manage_super_admin_role() -> None:
         client = TestClient(app)
         response = client.patch(f"/users/{target.user_id}/role", json={"role": "super_admin"})
         assert response.status_code == 403
+
+
+def test_admin_can_list_users() -> None:
+    admin, _password = make_user(role=UserRole.ADMIN)
+    target, _ = make_user(role=UserRole.USER)
+    with user_repo([admin, target]), as_user(admin):
+        client = TestClient(app)
+        response = client.get("/users")
+        assert response.status_code == 200
+        emails = {item["email"] for item in response.json()["items"]}
+        assert admin.email in emails
+        assert target.email in emails
+
+
+def test_user_cannot_list_users() -> None:
+    user, _password = make_user(role=UserRole.USER)
+    with user_repo([user]), as_user(user):
+        client = TestClient(app)
+        assert client.get("/users").status_code == 403
 
 
 def test_super_admin_can_create_users() -> None:

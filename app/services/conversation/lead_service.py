@@ -11,6 +11,7 @@ from app.helpers.conversation_extract import (
     normalize_person_name,
 )
 from app.helpers.conversation_reply import lead_created_reply
+from app.helpers.user_language import localized_text, response_language
 from app.helpers.conversation_turn import is_acknowledgement_only
 from app.helpers.phone import (
     CITY_COUNTRY_INDIA,
@@ -46,18 +47,18 @@ def prompt_for_lead_field(
     name: str = "",
     product: str = "",
     after_knowledge: bool = False,
+    language: str = "en",
 ) -> str:
     display_name = normalize_person_name(name)
     if after_knowledge:
-        return _knowledge_lead_continuation(field, product=product)
+        return _knowledge_lead_continuation(field, product=product, language=language)
     if field == "phone":
-        if display_name:
-            return f"Thanks, {display_name}. What's the best number to reach you on?"
-        return "What's the best number to reach you on?"
+        key = "ask_lead_phone_named" if display_name else "ask_lead_phone"
+        return localized_text(key, language, name=display_name)
     if field == "name":
-        return "I'll help you get connected. What name should our team use when they contact you?"
+        return localized_text("ask_lead_name", language)
     if field == "city":
-        return "Thanks! Which city should I note for the team?"
+        return localized_text("ask_lead_city", language)
     if field == "phone_country":
         return "Which country is this number from?"
     if field == "product":
@@ -69,16 +70,32 @@ def prompt_for_missing_lead_field(state: ConversationState, field: str) -> str:
     validation = (state.trace or {}).get("phone_validation") or {}
     if field in {"phone", "phone_country"} and validation.get("valid") is False:
         return phone_validation_reply(validation)
-    return prompt_for_lead_field(field, name=state.user_name)
+    return prompt_for_lead_field(
+        field,
+        name=state.user_name,
+        language=response_language(state),
+    )
 
 
-def _knowledge_lead_continuation(field: str, *, product: str = "") -> str:
+def _knowledge_lead_continuation(field: str, *, product: str = "", language: str = "en") -> str:
     topic = (product or "").strip() or "this"
     if field == "phone":
+        if language == "hi":
+            return f"{topic} में मदद के लिए, आपसे संपर्क करने के लिए सबसे अच्छा नंबर क्या है?"
+        if language == "hinglish":
+            return f"{topic} ke liye help chahiye ho to best contact number kya hai?"
         return f"If you'd like help with {topic}, what's the best number to reach you on?"
     if field == "name":
+        if language == "hi":
+            return f"{topic} में मदद के लिए, हमारी टीम आपको किस नाम से बुलाए?"
+        if language == "hinglish":
+            return f"{topic} ke liye help chahiye ho to hamari team aapko kis naam se call kare?"
         return f"If you'd like help with {topic}, what name should our team use?"
     if field == "city":
+        if language == "hi":
+            return f"{topic} में मदद के लिए, टीम के लिए कौन-सा शहर नोट करूँ?"
+        if language == "hinglish":
+            return f"{topic} ke liye help chahiye ho to kaunsa city note karoon?"
         return f"If you'd like help with {topic}, which city should I note for the team?"
     if field == "phone_country":
         return "Which country is this number from?"
@@ -117,7 +134,10 @@ class LeadService:
         state.lead_collection_active = False
         state.awaiting_field = ""
         state.explicit_action = ""
-        state.response = lead_created_reply(state.user_name)
+        state.response = lead_created_reply(
+            state.user_name,
+            language=response_language(state),
+        )
         _mark_lead_created(state, lead_id)
         return state
 
@@ -180,7 +200,10 @@ class LeadService:
         state.lead_collection_active = False
         state.awaiting_field = ""
         state.explicit_action = ""
-        state.response = lead_created_reply(state.user_name)
+        state.response = lead_created_reply(
+            state.user_name,
+            language=response_language(state),
+        )
         _mark_lead_created(state, lead_id)
         _record_tool_ms(state, started)
         return state
@@ -293,8 +316,9 @@ class LeadService:
         }
         state.lead_workflow = mapping.get(missing, LeadWorkflow.NONE)
 
-    def _prompt(self, field: str, *, name: str = "") -> str:
-        return prompt_for_lead_field(field, name=name)
+    def _prompt(self, field: str, *, name: str = "", state: ConversationState | None = None) -> str:
+        language = response_language(state) if state is not None else "en"
+        return prompt_for_lead_field(field, name=name, language=language)
 
 
 def _release_completed_lead(state: ConversationState) -> ConversationState:

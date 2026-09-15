@@ -34,8 +34,14 @@ class LeadAdminService:
         conversation = self._traces.get_conversation(lead.conversation_id)
         return lead, conversation
 
-    def update_status(self, lead_id: str, status: RecordStatus) -> Lead | None:
-        return self._leads.update_lead_status(lead_id, status)
+    def update_status(
+        self,
+        lead_id: str,
+        status: RecordStatus,
+        *,
+        closed_by: str | None = None,
+    ) -> Lead | None:
+        return self._leads.update_lead_status(lead_id, status, closed_by=closed_by)
 
 
 class SupportAdminService:
@@ -63,5 +69,11 @@ class SupportAdminService:
         conversation = self._traces.get_conversation(ticket.conversation_id)
         return ticket, conversation
 
-    def update_status(self, ticket_id: str, status: RecordStatus) -> SupportTicket | None:
-        return self._tickets.update_ticket_status(ticket_id, status)
+    def update_status(
+        self,
+        ticket_id: str,
+        status: RecordStatus,
+        *,
+        closed_by: str | None = None,
+    ) -> SupportTicket | None:
+        return self._tickets.update_ticket_status(ticket_id, status, closed_by=closed_by)

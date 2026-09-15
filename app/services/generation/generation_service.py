@@ -12,6 +12,7 @@ from app.helpers.conversation_prompt import (
     build_conversation_user_prompt,
     parse_conversation_answer,
 )
+from app.helpers.quick_replies import attach_lead_offer_after_sales_pitch
 from app.helpers.conversation_reply import conversational_fallback, repeats_recent_assistant
 from app.helpers.conversation_turn import has_greeting_prefix
 from app.helpers.generation_json import extract_json_object
@@ -62,7 +63,13 @@ class GenerationService:
     def conversation_temperature(self) -> float:
         return self._conversation_temperature
 
-    def generate(self, query: str, hits: list[Any]) -> GenerationResult:
+    def generate(
+        self,
+        query: str,
+        hits: list[Any],
+        *,
+        response_language: str = "en",
+    ) -> GenerationResult:
         if not hits:
             if current_trace():
                 record_grounding(
@@ -84,7 +91,7 @@ class GenerationService:
             logger.warning("generation skipped: LLM is not configured")
             return ungrounded_fallback()
         started = time.perf_counter()
-        raw, user_prompt = self._complete_once(query, hits)
+        raw, user_prompt = self._complete_once(query, hits, response_language=response_language)
         latency_ms = (time.perf_counter() - started) * 1000
         if raw is None:
             if current_trace():
@@ -142,6 +149,7 @@ class GenerationService:
         fallback = conversational_fallback(state)
         if not self._llm.is_configured:
             state.response = fallback
+            attach_lead_offer_after_sales_pitch(state)
             return state
         started = time.perf_counter()
         user_prompt = build_conversation_user_prompt(state)
@@ -157,6 +165,7 @@ class GenerationService:
             if current_trace():
                 record_error("generation", exc, recoverable=True, fallback_used=True)
             state.response = fallback
+            attach_lead_offer_after_sales_pitch(state)
             return state
         state.trace = dict(state.trace or {})
         state.trace["generation_ms"] = round((time.perf_counter() - started) * 1000, 3)
@@ -181,13 +190,21 @@ class GenerationService:
                 raw_output=raw,
             )
         state.response = answer
+        attach_lead_offer_after_sales_pitch(state)
         return state
 
-    def _complete_once(self, query: str, hits: list[Any]) -> tuple[str | None, str]:
+    def _complete_once(
+        self,
+        query: str,
+        hits: list[Any],
+        *,
+        response_language: str = "en",
+    ) -> tuple[str | None, str]:
         user_prompt = build_generation_user_prompt(
             query,
             hits,
             acknowledge_greeting=has_greeting_prefix(query),
+            response_language=response_language,
         )
         try:
             raw = self._llm.complete(

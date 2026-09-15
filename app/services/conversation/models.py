@@ -85,6 +85,7 @@ class InboundMessage:
     user_name: str | None = None
     country: str | None = None
     external_user_id: str | None = None
+    external_message_id: str | None = None
 
 
 @dataclass
@@ -138,6 +139,7 @@ class ConversationState:
     guardrail_rejected: bool = False
     error: str = ""
     trace: dict[str, Any] = field(default_factory=dict)
+    last_activity_at: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -184,6 +186,7 @@ class ConversationState:
             "guardrail_rejected": self.guardrail_rejected,
             "error": self.error,
             "trace": dict(self.trace),
+            "last_activity_at": self.last_activity_at,
         }
 
     @classmethod

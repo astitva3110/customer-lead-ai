@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from app.helpers.conversation_extract import (
+    looks_like_device_support_issue,
+    looks_like_general_hearing_concern,
+    looks_like_hearing_health_concern,
     looks_like_support_contact_request,
     looks_like_support_escalation_request,
 )
@@ -32,6 +35,116 @@ def test_support_escalation_phrases_detected() -> None:
     assert looks_like_support_escalation_request("i need assitance")
     assert looks_like_support_escalation_request("i need assistance")
     assert not looks_like_support_escalation_request("I want to buy TINY.")
+
+
+def test_hearing_health_concern_detected() -> None:
+    assert looks_like_general_hearing_concern("I have hearing problem what should I do")
+    assert looks_like_general_hearing_concern("I have hearing problem bro")
+    assert looks_like_general_hearing_concern("i have hearing issues")
+    assert looks_like_general_hearing_concern("I have a hearing problem")
+    assert looks_like_general_hearing_concern("i have hearing loss")
+    assert looks_like_hearing_health_concern("I have a hearing problem")
+    assert not looks_like_general_hearing_concern("What is hearing loss?")
+    assert not looks_like_device_support_issue("I have hearing problem what should I do")
+    assert looks_like_device_support_issue("my TINY is not working")
+    assert looks_like_device_support_issue("hearing aid not working")
+
+
+def test_general_hearing_problem_routes_to_knowledge_not_support() -> None:
+    router = ChatRouter()
+    messages = (
+        "I have hearing problem what should I do",
+        "I have hearing problem",
+        "i have hearing issues",
+        "I have a hearing problem",
+        "i have hearing loss",
+        "I have hearing loss",
+        "I can't hear well",
+        "I'm having difficulty hearing",
+    )
+    for message in messages:
+        routed = router.route(ConversationState(user_message=message))
+        assert routed.current_turn_intent == TurnIntent.KNOWLEDGE, message
+        assert routed.conversation_goal != ConversationGoal.SUPPORT, message
+        assert routed.trace.get("should_retrieve") is True, message
+        assert "support ticket" not in (routed.response or "").lower(), message
+
+
+def test_general_hearing_stays_knowledge_when_semantic_says_support() -> None:
+    import json
+
+    from tests.unit.conversation.test_semantic_router import ScriptedRouterLLM
+
+    llm = ScriptedRouterLLM(
+        [
+            json.dumps(
+                {
+                    "intent": "support",
+                    "action": "start_support",
+                    "needs_rewrite": False,
+                    "product": "Radius",
+                    "confidence": 0.95,
+                }
+            )
+        ]
+    )
+    router = ChatRouter(llm=llm)
+    routed = router.route(
+        ConversationState(user_message="i have hearing loss", product="Radius")
+    )
+    assert routed.current_turn_intent == TurnIntent.KNOWLEDGE
+    assert routed.conversation_goal != ConversationGoal.SUPPORT
+    assert routed.trace.get("should_retrieve") is True
+    assert routed.trace.get("semantic_router_used") is not True
+
+
+def test_device_fault_still_routes_to_support() -> None:
+    router = ChatRouter()
+    for message in ("my TINY is not working", "hearing aid not working", "it is not powering on"):
+        routed = router.route(ConversationState(user_message=message))
+        assert routed.current_turn_intent == TurnIntent.SUPPORT_INTENT, message
+        assert routed.conversation_goal == ConversationGoal.SUPPORT, message
+
+
+def test_device_issue_followup_stays_support_not_general() -> None:
+    import json
+
+    from tests.unit.conversation.test_semantic_router import ScriptedRouterLLM
+
+    offer = (
+        "I'm sorry you're having trouble with your hearing aid. I can open a support ticket "
+        "so our customer service team can reach out and help — would you like me to do that?"
+    )
+    llm = ScriptedRouterLLM(
+        [
+            json.dumps(
+                {
+                    "intent": "support",
+                    "action": "continue_support",
+                    "needs_rewrite": False,
+                    "product": None,
+                    "confidence": 0.95,
+                }
+            )
+        ]
+    )
+    router = ChatRouter(llm=llm)
+    routed = router.route(
+        ConversationState(
+            user_message="it is not powering on",
+            product="TINY",
+            conversation_goal=ConversationGoal.SUPPORT,
+            mode=ChatMode.SUPPORT,
+            support_intent=True,
+            support_issue="my TINY is not working",
+            conversation_history=[
+                {"role": "user", "content": "my TINY is not working"},
+                {"role": "assistant", "content": offer},
+            ],
+        )
+    )
+    assert routed.current_turn_intent == TurnIntent.SUPPORT_INTENT
+    assert routed.trace.get("needs_natural_reply") is not True
 
 
 def test_yes_plz_is_short_yes() -> None:
@@ -354,6 +467,47 @@ def test_contact_service_during_support_starts_ticket_not_lead() -> None:
     assert routed.current_turn_intent != TurnIntent.LEAD_INTENT
     assert routed.current_turn_intent != TurnIntent.KNOWLEDGE
     assert routed.trace.get("should_retrieve") is not True
+
+
+def _sales_offer_history() -> list[dict[str, str]]:
+    return [
+        {"role": "user", "content": "i want to buy tiny"},
+        {
+            "role": "assistant",
+            "content": (
+                "Great to hear that! Buying TINY offers you access to high-quality hearing solutions. "
+                "Let me connect you with the sales team to assist you further."
+            ),
+        },
+    ]
+
+
+def test_ok_connect_me_to_sales_starts_lead() -> None:
+    router = ChatRouter()
+    routed = router.route(
+        ConversationState(
+            user_message="ok connect me to the sales team",
+            product="TINY",
+            conversation_history=_sales_offer_history(),
+        )
+    )
+    assert routed.explicit_action == "create_lead"
+    assert routed.mode == ChatMode.LEAD
+    assert routed.conversation_goal != ConversationGoal.SUPPORT
+
+
+def test_ok_yeah_and_create_it_after_sales_offer_start_lead() -> None:
+    router = ChatRouter()
+    for message in ("ok", "OK", "yeah", "ok create it", "yes create it"):
+        routed = router.route(
+            ConversationState(
+                user_message=message,
+                product="TINY",
+                conversation_history=_sales_offer_history(),
+            )
+        )
+        assert routed.explicit_action == "create_lead", message
+        assert routed.mode == ChatMode.LEAD, message
 
 
 def test_yes_after_sales_offer_with_further_assistance_starts_lead() -> None:

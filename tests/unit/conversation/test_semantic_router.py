@@ -296,12 +296,25 @@ def test_compare_phrase_and_semantic_on_clean_buy() -> None:
     assert phrase.trace.get("semantic_router_used") is not True
 
 
+def test_routing_priority_and_explicit_lead_in_system_prompt() -> None:
+    llm = ScriptedRouterLLM(_payload(route="LEAD"))
+    _route("ok create sale lead", llm)
+    assert "ROUTING PRIORITY" in llm.last_system
+    assert "EXPLICIT LEAD REQUEST" in llm.last_system
+    assert "ok create sale lead" in llm.last_system
+    assert "product name does NOT determine intent" in llm.last_system
+    assert "IN BETWEEN" in llm.last_system or "in between" in llm.last_system.lower()
+
+
 def test_catalog_is_in_system_prompt() -> None:
     llm = ScriptedRouterLLM(_payload(route="KNOWLEDGE"))
     _route("What products do you have?", llm)
     assert "TINY" in llm.last_system
     assert "tinny" in llm.last_system
     assert "Bluup" in llm.last_system
+    assert "CURRENT_MESSAGE" in llm.last_user
+    assert "CONVERSATION_STATE" in llm.last_user
+    assert "RECENT_CONVERSATION" in llm.last_user
     assert '"current_status"' in llm.last_user
     assert '"conversation_status"' in llm.last_user
 
@@ -313,6 +326,19 @@ def test_connect_sales_is_lead() -> None:
     )
     assert routed.mode == ChatMode.LEAD
     assert routed.sales_interest is True
+
+
+def test_ok_connect_sales_not_overridden_by_support_route() -> None:
+    routed = _route(
+        "ok connect me to the sales team",
+        ScriptedRouterLLM(_decision(intent="support", action="start_support", needs_rewrite=False, product="TINY")),
+        product="TINY",
+    )
+    assert routed.explicit_action == "create_lead"
+    assert routed.mode == ChatMode.LEAD
+    assert routed.conversation_goal != ConversationGoal.SUPPORT
+    assert routed.trace.get("semantic_router_used") is not True
+    assert routed.trace["semantic_router"]["fallback_reason"] == "prefer_lead"
 
 
 def test_support_device_issue_uses_support_route() -> None:
@@ -389,3 +415,84 @@ def test_compare_log_includes_rewriter_and_qwen() -> None:
     assert compare["route"] == "KNOWLEDGE"
     assert compare["product"] == "TINY"
     assert routed.query_rewritten == "What is the warranty of TINY?"
+
+
+def _decision(**overrides) -> str:
+    data = {
+        "intent": "knowledge",
+        "action": "answer_knowledge",
+        "needs_rewrite": False,
+        "product": None,
+    }
+    data.update(overrides)
+    return json.dumps(data)
+
+
+def test_parse_decision_engine_schema() -> None:
+    parsed = parse_semantic_route(
+        _decision(intent="knowledge", action="answer_knowledge", needs_rewrite=True, product="TINY")
+    )
+    assert parsed is not None
+    assert parsed.route == "KNOWLEDGE"
+    assert parsed.action == "answer_knowledge"
+    assert parsed.needs_rewrite is True
+    assert parsed.product == "TINY"
+
+
+def test_start_lead_decision_routes_to_lead() -> None:
+    routed = _route(
+        "I want to buy Radius M16",
+        ScriptedRouterLLM(_decision(intent="lead", action="start_lead", needs_rewrite=False, product="Radius M16")),
+    )
+    assert routed.mode == ChatMode.LEAD
+    assert routed.product == "Radius M16"
+    assert routed.trace["semantic_router"]["action"] == "start_lead"
+    assert routed.trace["needs_rewrite"] is False
+
+
+def test_continue_lead_from_decision_payload() -> None:
+    from app.helpers.semantic_router import understanding_from_semantic
+    from app.helpers.turn_understanding import TurnUnderstanding
+
+    parsed = parse_semantic_route(_decision(intent="lead", action="continue_lead", needs_rewrite=False, product="TINY"))
+    phrase = TurnUnderstanding(turn_intent="PROVIDE_INFORMATION", lead_intent=True, confidence=0.9)
+    state = ConversationState(user_message="Astitva", awaiting_field="name", product="TINY")
+    understood = understanding_from_semantic(parsed, phrase, state)
+    assert understood.turn_intent == "PROVIDE_INFORMATION"
+    assert understood.needs_rag is False
+    assert understood.lead_intent is True
+
+
+def test_continue_lead_does_not_block_product_question() -> None:
+    routed = _route(
+        "i wanna know more in deatils of tiny",
+        ScriptedRouterLLM(_decision(intent="lead", action="continue_lead", needs_rewrite=False, product="TINY")),
+        product="TINY",
+        conversation_goal=ConversationGoal.LEAD,
+        mode=ChatMode.LEAD,
+        user_name="Astitva",
+        lead_intent=True,
+        lead_collection_active=True,
+        awaiting_field="phone",
+        lead_status=LeadStatus.COLLECTING,
+        lead_stage=LeadStage.IN_PROGRESS,
+    )
+    assert routed.trace.get("should_retrieve") is True
+    assert routed.current_turn_intent == "KNOWLEDGE"
+    assert routed.return_mode == ChatMode.LEAD
+    assert routed.awaiting_field == "phone"
+
+
+def test_pronoun_knowledge_sets_needs_rewrite() -> None:
+    routed = _route(
+        "What about its battery?",
+        ScriptedRouterLLM(
+            _decision(intent="knowledge", action="answer_knowledge", needs_rewrite=True, product="Radius M16")
+        ),
+        product="Radius M16",
+        conversation_goal=ConversationGoal.SALES,
+    )
+    assert routed.mode == ChatMode.KNOWLEDGE
+    assert routed.trace.get("should_retrieve") is True
+    assert routed.trace["needs_rewrite"] is True
+    assert routed.product == "Radius M16"

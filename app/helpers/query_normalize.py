@@ -5,7 +5,7 @@ import re
 FILLER_PREFIX_RE = re.compile(
     r"^(?:"
     r"ok(?:ay)?|so|well|um+|uh+|please|actually|alright|right|"
-    r"hi(?:ya)?|hello|hey|"
+    r"h+i+|he+y+|hell+o+|hiya|hello|hey|hola|namaste|namaskar|pranam|"
     r"how(?:'s| is| are) (?:it going|you|u|ya)(?: doing)?"
     r")[,!.?\s]+",
     re.IGNORECASE,
@@ -65,6 +65,11 @@ KNOWLEDGE_PATTERNS = (
     r"(?:can|could|would)\s+you\s+(?:please\s+)?(?:tell|explain)",
     r"\bexplain\b",
     r"\bdetails?\b",
+    r"\bdeatils\b",
+    r"\bknow more\b",
+    r"\bmore details?\b",
+    r"\bin details?\b",
+    r"\bdetails of\b",
     r"\binformation\b",
     r"\bbluetooth\b",
 )
@@ -113,6 +118,22 @@ def looks_like_knowledge_request(message: str) -> bool:
     if KNOW_ABOUT_RE.match(text):
         return True
     return any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in KNOWLEDGE_PATTERNS)
+
+
+PRICE_PATTERNS = (
+    r"\bprice\b",
+    r"\bpricing\b",
+    r"\bmrp\b",
+    r"\bhow much\b",
+    r"\bcost\b",
+)
+
+
+def looks_like_price_query(message: str) -> bool:
+    text = strip_query_fillers(message or "")
+    if not text:
+        return False
+    return any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in PRICE_PATTERNS)
 
 
 def looks_like_informational_question(message: str) -> bool:

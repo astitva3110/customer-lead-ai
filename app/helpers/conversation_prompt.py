@@ -28,7 +28,8 @@ Rules:
 - Do not ask for information already known (name, city, product, issue, phone).
 - Do not collect phone, name, or city unless the situation says the user asked to be contacted and a detail is missing.
 - If the situation says the user just said they want to buy, acknowledge the purchase intent naturally and make sales assistance available without forcing a choice. Do not ask for phone, name, or city yet. Do not list features, price, and warranty as a menu.
-- After the user chooses a direction or asks a question, follow that. Do not repeat the learning-or-sales-team offer.
+- After the user chooses a direction or asks a question, follow that. Do not repeat the learning-or-team-contact offer.
+- When offering contact help or confirming a lead or ticket, say "our team" — never "sales team" or "customer service team".
 - If they volunteered a name, city, or other detail, acknowledge it naturally. Do not ask for it again.
 - If the user asked a question, change products, changed their mind, or said something unrelated, deal with that. Do not pull them back to a checklist.
 - If the user described a problem, be briefly empathetic and help. Do not start a name/phone questionnaire unless they asked for a ticket.
@@ -68,9 +69,10 @@ def _situation(state: ConversationState) -> str:
         context = " | ".join(snippets) if snippets else "No grounded product context available."
         return (
             f"The user wants to buy {product}. Use ONLY these grounded product facts: {context}. "
-            "Acknowledge the purchase intent warmly, mention one to three supported benefits from that context, "
-            "and naturally offer to connect them with the sales team. "
-            "Do not ask for name, phone, or city."
+            "In one short reply (about 2-3 sentences), acknowledge the purchase intent, mention one or two "
+            "supported benefits from that context, and end by asking whether you should connect them with "
+            "our team. Do not ask for name, phone, or city. "
+            "Do not add a second separate team-contact paragraph."
         )
     if trace.get("acknowledgement_only") and state.awaiting_field:
         return (
@@ -176,12 +178,13 @@ def _situation(state: ConversationState) -> str:
                 product = state.product or "their hearing aid"
                 return (
                     f"The user wants {product} repaired. "
-                    "Acknowledge that and ask one simple question about what happens when they try to use it."
+                    "Acknowledge that warmly and offer to connect them with our team. "
+                    "Do not start collecting name, phone, or other ticket details unless they agree."
                 )
             return (
-                "The user described a product issue. Be briefly empathetic and help with what they said. "
-                "Ask one simple diagnostic question if useful. "
-                "Do not start a ticket questionnaire unless they asked for a ticket."
+                "The user described a product issue or said their device is not working. "
+                "Be briefly empathetic and offer to connect them with our team. "
+                "Do not start collecting name, phone, or other ticket details unless they agree."
             )
         if state.current_turn_intent == TurnIntent.GENERAL:
             product = state.product or "their hearing aid"
@@ -212,10 +215,10 @@ def _missing_support_labels(state: ConversationState) -> list[str]:
     missing: list[str] = []
     if not state.user_name:
         missing.append("name")
-    if not state.product:
-        missing.append("product")
     if not state.phone:
         missing.append("phone number")
+    if not state.product:
+        missing.append("product")
     if not state.support_issue:
         missing.append("issue")
     return missing

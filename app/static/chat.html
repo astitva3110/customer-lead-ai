@@ -67,6 +67,21 @@
     .msg.user { align-self: flex-end; background: #2563eb; }
     .msg.bot { align-self: flex-start; background: #1e293b; border: 1px solid #334155; }
     .msg.error { align-self: center; background: #7f1d1d; font-size: 0.9rem; }
+    .quick-replies {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.45rem;
+    }
+    .quick-replies button {
+      padding: 0.45rem 0.75rem;
+      border-radius: 999px;
+      background: #334155;
+      color: #e7ecf1;
+      font-size: 0.9rem;
+      border: 1px solid #475569;
+    }
+    .quick-replies button:hover { background: #475569; }
     .composer {
       display: flex;
       gap: 0.5rem;
@@ -127,11 +142,23 @@
       localStorage.setItem("earkart_country", countrySelect.value);
     });
 
-    function addMessage(text, role) {
+    function addMessage(text, role, quickReplies) {
       const div = document.createElement("div");
       div.className = "msg " + role;
       div.textContent = text;
       messages.appendChild(div);
+      if (role === "bot" && Array.isArray(quickReplies) && quickReplies.length) {
+        const actions = document.createElement("div");
+        actions.className = "quick-replies";
+        quickReplies.forEach((item) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.textContent = item.label || item.id || "Option";
+          btn.addEventListener("click", () => sendMessage(item.id || item.label || ""));
+          actions.appendChild(btn);
+        });
+        messages.appendChild(actions);
+      }
       messages.scrollTop = messages.scrollHeight;
     }
 
@@ -156,7 +183,7 @@
         const data = await res.json();
         conversationId = data.conversation_id;
         localStorage.setItem("earkart_conversation_id", conversationId);
-        addMessage(data.response || data.answer || "(no response)", "bot");
+        addMessage(data.response || data.answer || "(no response)", "bot", data.quick_replies || []);
       } catch (e) {
         addMessage("Could not reach the server.", "error");
       } finally {

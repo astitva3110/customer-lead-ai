@@ -37,12 +37,19 @@ class PostgresLeadRepository:
             row = session.get(LeadRow, lead_id)
             return row.to_entity() if row else None
 
-    def update_lead_status(self, lead_id: str, status: RecordStatus) -> Lead | None:
+    def update_lead_status(
+        self,
+        lead_id: str,
+        status: RecordStatus,
+        *,
+        closed_by: str | None = None,
+    ) -> Lead | None:
         with self._session_factory() as session:
             row = session.get(LeadRow, lead_id)
             if row is None:
                 return None
             row.status = status.value
+            row.closed_by = closed_by if status == RecordStatus.CLOSED else None
             row.updated_at = _utcnow()
             session.commit()
             session.refresh(row)

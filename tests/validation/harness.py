@@ -33,7 +33,7 @@ def conversation_stub_answer(user: str) -> str:
     if "just said they want to buy" in situation.lower():
         return (
             f"Absolutely! {product} is a great choice. "
-            "I can help with any questions, and I can connect you with our sales team whenever you're ready."
+            "I can help with any questions, and I can connect you with our team whenever you're ready."
         )
     if is_short_yes(message):
         return f"Sure — I can cover {product} whenever you're ready."

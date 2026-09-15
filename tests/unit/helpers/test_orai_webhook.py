@@ -1,4 +1,4 @@
-from app.helpers.orai_webhook import parse_orai_inbound
+from app.helpers.orai_webhook import parse_orai_inbound, preview_orai_payload, summarize_orai_payload
 
 
 CLOUD_TEXT = {
@@ -37,6 +37,7 @@ def test_parse_whatsapp_cloud_text() -> None:
     assert inbound[0].user_name == "Rahul"
     assert inbound[0].channel == "whatsapp"
     assert inbound[0].origin == "whatsapp"
+    assert inbound[0].external_message_id == "wamid.1"
 
 
 def test_parse_status_only_webhook_is_empty() -> None:
@@ -54,6 +55,14 @@ def test_parse_status_only_webhook_is_empty() -> None:
         ],
     }
     assert parse_orai_inbound(payload) == []
+    assert summarize_orai_payload(payload) == "cloud messages=0 statuses=1"
+
+
+def test_preview_orai_payload_truncates_large_body() -> None:
+    payload = {"message": "x" * 3000, "from": "919876543210"}
+    preview = preview_orai_payload(payload, limit=100)
+    assert "truncated" in preview
+    assert len(preview) < 200
 
 
 def test_parse_flat_orai_payload() -> None:

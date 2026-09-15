@@ -11,6 +11,7 @@ from app.services.conversation.models import (
     SupportWorkflow,
     TicketStatus,
 )
+from app.helpers.user_language import response_language
 from app.services.conversation.support_service import prompt_for_support_field
 
 logger = logging.getLogger(__name__)
@@ -38,14 +39,22 @@ def next_missing_lead_field(state: ConversationState) -> str:
 
 
 def next_missing_support_field(state: ConversationState) -> str:
+    if state.awaiting_field == "phone_country" and not state.phone:
+        return "phone_country"
+    if state.awaiting_field == "phone" and not state.phone:
+        return "phone_country" if state.pending_phone else "phone"
+    if state.awaiting_field == "name" and not state.user_name:
+        return "name"
+    if state.awaiting_field == "product" and not state.product:
+        return "product"
+    if state.awaiting_field == "issue" and not state.support_issue:
+        return "issue"
     if not state.user_name:
         return "name"
+    if not state.phone:
+        return "phone_country" if state.pending_phone else "phone"
     if not state.product:
         return "product"
-    if not state.phone:
-        if state.pending_phone or state.awaiting_field == "phone_country":
-            return "phone_country"
-        return "phone"
     if not state.support_issue:
         return "issue"
     return ""
@@ -150,6 +159,7 @@ def append_workflow_resume_after_knowledge(state: ConversationState, knowledge_a
             name=state.user_name,
             product=state.product,
             after_knowledge=True,
+            language=response_language(state),
         )
         composed = f"{answer}\n\n{continuation}"
         logger.info(
@@ -160,7 +170,11 @@ def append_workflow_resume_after_knowledge(state: ConversationState, knowledge_a
 
     if resume_support and next_support_field:
         _apply_support_resume_state(state, next_support_field)
-        continuation = prompt_for_support_field(next_support_field, name=state.user_name)
+        continuation = prompt_for_support_field(
+            next_support_field,
+            name=state.user_name,
+            language=response_language(state),
+        )
         composed = f"{answer}\n\n{continuation}"
         logger.info(
             "knowledge_resume_applied workflow=support next_missing_field=%s resumed_support=true",

@@ -9,6 +9,9 @@ class UserAdminService:
     def __init__(self, users: UserRepository) -> None:
         self._users = users
 
+    def list_users(self) -> list[User]:
+        return self._users.list_users()
+
     def create_user(
         self,
         *,

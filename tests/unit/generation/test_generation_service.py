@@ -218,6 +218,33 @@ def test_trace_records_invalid_source_ids(monkeypatch) -> None:
     assert "please provide" not in result.response.lower()
 
 
+def test_converse_sales_pitch_attaches_lead_yes_no() -> None:
+    from app.helpers.quick_replies import PENDING_LEAD_OFFER, quick_replies_from_trace
+    from app.services.conversation.models import ConversationState
+
+    llm = _RecordingLLM(
+        json.dumps(
+            {
+                "answer": (
+                    "Great choice on TINY! Would you like me to connect you with our team?"
+                )
+            }
+        )
+    )
+    service = GenerationService(llm, conversation_temperature=0.4)
+    state = ConversationState(
+        user_message="I want to buy TINY.",
+        product="TINY",
+        trace={"sales_pitch_from_rag": True, "next_action": "SALES_PITCH_AND_OFFER_CONTACT"},
+    )
+    result = service.converse(state)
+    replies = quick_replies_from_trace(result)
+    assert len(replies) == 2
+    assert replies[0]["id"] == "lead_yes"
+    assert result.trace.get("pending_choice") == PENDING_LEAD_OFFER
+    assert result.response.count("connect you with our team") == 1
+
+
 def test_converse_does_not_repeat_last_assistant() -> None:
     from app.services.conversation.models import ConversationState
 

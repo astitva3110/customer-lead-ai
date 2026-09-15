@@ -3,6 +3,7 @@ from pydantic import ValidationError
 
 from app.config import settings
 from app.dependencies import get_orchestrator
+from app.helpers.whatsapp_webhook_dedup import reset_whatsapp_webhook_dedup
 from app.main import app
 from app.schemas import ChatRequest
 from app.services.conversation.models import LeadStatus
@@ -63,6 +64,7 @@ def test_frontend_origin_stays_on_state() -> None:
 
 
 def test_whatsapp_webhook_runs_conversation() -> None:
+    reset_whatsapp_webhook_dedup()
     orchestrator, *_ = make_orchestrator()
     app.dependency_overrides[get_orchestrator] = lambda: orchestrator
     try:
@@ -75,6 +77,48 @@ def test_whatsapp_webhook_runs_conversation() -> None:
         assert payload["results"][0]["response"]
     finally:
         app.dependency_overrides.clear()
+
+
+def test_whatsapp_webhook_skips_duplicate_wamid() -> None:
+    reset_whatsapp_webhook_dedup()
+    orchestrator, *_ = make_orchestrator()
+    app.dependency_overrides[get_orchestrator] = lambda: orchestrator
+    try:
+        client = TestClient(app)
+        first = client.post("/channels/whatsapp", json=CLOUD_TEXT)
+        second = client.post("/channels/whatsapp", json=CLOUD_TEXT)
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert first.json()["results"][0]["response"]
+        assert second.json()["results"] == []
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_whatsapp_status_webhook_returns_without_processing() -> None:
+    reset_whatsapp_webhook_dedup()
+    payload = {
+        "object": "whatsapp_business_account",
+        "entry": [
+            {
+                "changes": [
+                    {
+                        "value": {
+                            "statuses": [{"id": "wamid.status", "status": "delivered", "recipient_id": "919876543210"}]
+                        },
+                        "field": "messages",
+                    }
+                ]
+            }
+        ],
+    }
+    client = TestClient(app)
+    first = client.post("/channels/whatsapp", json=payload)
+    second = client.post("/channels/whatsapp", json=payload)
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["results"] == []
+    assert second.json()["results"] == []
 
 
 def test_chat_accepts_frontend_origin() -> None:

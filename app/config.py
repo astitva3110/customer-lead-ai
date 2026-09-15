@@ -41,6 +41,7 @@ class RuntimeSettings(BaseSettings):
 
     # Chat / lead
     default_country: str = ""
+    conversation_session_timeout_minutes: int = 15
 
     # Public web + channel webhooks (comma-separated origins; empty disables CORS)
     cors_allow_origins: str = ""

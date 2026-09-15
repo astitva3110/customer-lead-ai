@@ -1,0 +1,116 @@
+"""Regression tests for hearing-loss consultation and product-interest quick replies."""
+
+import json
+
+from app.helpers.conversation_extract import (
+    looks_like_hearing_consultation_need,
+    looks_like_product_interest_request,
+)
+from app.helpers.quick_replies import (
+    CONSULTATION_TRIAL_LABEL,
+    CONSULTATION_TRIAL_MESSAGE,
+    quick_replies_from_trace,
+)
+from app.services.conversation.models import ChatMode, ConversationGoal, TurnIntent
+from tests.unit.conversation.fakes import RecordingLLM, make_orchestrator
+from tests.unit.conversation.test_semantic_router import ScriptedRouterLLM
+
+HEARING_LOSS_QUERY = "i have hearing loss of 45% percent which hearing aid should i need"
+HEARING_LOSS_REPLY = (
+    "Your hearing loss of 45% requires a hearing aid that is tailored to your specific needs. "
+    "An audiologist can assess your hearing and recommend the most suitable device. "
+    "Would you like to know more about the types of hearing aids available or how to find one "
+    "that fits your lifestyle?"
+)
+PRODUCT_INTEREST = "I want a hearing aid"
+PRODUCT_INTEREST_BUTTON = f"followup:{PRODUCT_INTEREST}"
+
+
+def _support_semantic_llm() -> ScriptedRouterLLM:
+    payload = json.dumps(
+        {
+            "intent": "support",
+            "action": "start_support",
+            "needs_rewrite": False,
+            "product": None,
+            "confidence": 0.95,
+        }
+    )
+    return ScriptedRouterLLM([payload, payload])
+
+
+def test_hearing_loss_selection_question_is_consultation_not_support() -> None:
+    assert looks_like_hearing_consultation_need(HEARING_LOSS_QUERY)
+    assert looks_like_product_interest_request(PRODUCT_INTEREST)
+
+
+def test_hearing_loss_query_routes_to_knowledge() -> None:
+    orchestrator, knowledge, *_ = make_orchestrator()
+    result = orchestrator.handle("hl-knowledge", HEARING_LOSS_QUERY)
+    assert result.conversation_goal == ConversationGoal.KNOWLEDGE
+    assert result.mode == ChatMode.KNOWLEDGE
+    assert result.current_turn_intent == TurnIntent.KNOWLEDGE
+    assert result.conversation_goal != ConversationGoal.SUPPORT
+    assert knowledge.queries
+
+
+def test_hearing_loss_answer_offers_product_interest_buttons() -> None:
+    answer = json.dumps({"grounded": True, "answer": HEARING_LOSS_REPLY, "source_ids": ["chunk-1"]})
+    orchestrator, *_ = make_orchestrator(llm=RecordingLLM(output=answer))
+    result = orchestrator.handle("hl-buttons", HEARING_LOSS_QUERY)
+    replies = quick_replies_from_trace(result)
+    labels = [item["label"] for item in replies]
+    assert "I want a hearing aid" in labels
+    assert CONSULTATION_TRIAL_LABEL in labels
+
+
+def test_i_want_a_hearing_aid_after_hearing_loss_is_sales_not_support() -> None:
+    orchestrator, *_ = make_orchestrator(llm=_support_semantic_llm())
+    cid = "hl-sales-not-support"
+    orchestrator.handle(cid, HEARING_LOSS_QUERY)
+    second = orchestrator.handle(cid, PRODUCT_INTEREST)
+    assert second.conversation_goal != ConversationGoal.SUPPORT
+    assert second.mode != ChatMode.SUPPORT
+    assert second.support_intent is False
+    assert second.current_turn_intent == TurnIntent.LEAD_INTENT
+    assert "customer service team" not in (second.response or "").lower()
+    assert "having trouble" not in (second.response or "").lower()
+
+
+def test_i_want_a_hearing_aid_button_click_after_hearing_loss_is_sales_not_support() -> None:
+    answer = json.dumps({"grounded": True, "answer": HEARING_LOSS_REPLY, "source_ids": ["chunk-1"]})
+    orchestrator, *_ = make_orchestrator(llm=_support_semantic_llm_with_generation(answer))
+    cid = "hl-button-click"
+    first = orchestrator.handle(cid, HEARING_LOSS_QUERY)
+    assert quick_replies_from_trace(first)
+    second = orchestrator.handle(cid, PRODUCT_INTEREST_BUTTON)
+    assert second.user_message == PRODUCT_INTEREST
+    assert second.conversation_goal != ConversationGoal.SUPPORT
+    assert second.mode != ChatMode.SUPPORT
+    assert second.support_intent is False
+    assert second.trace.get("product_interest_override") is True
+    assert "customer service team" not in (second.response or "").lower()
+
+
+def test_create_trial_after_hearing_loss_starts_lead_collection() -> None:
+    orchestrator, _, _, lead_tool, *_ = make_orchestrator(llm=_support_semantic_llm())
+    cid = "hl-trial-lead"
+    orchestrator.handle(cid, HEARING_LOSS_QUERY)
+    second = orchestrator.handle(cid, CONSULTATION_TRIAL_MESSAGE)
+    assert second.explicit_action == "create_lead" or second.lead_collection_active
+    assert second.awaiting_field in {"name", "phone", "phone_country", "city"}
+    assert second.conversation_goal != ConversationGoal.SUPPORT
+    assert lead_tool.leads == []
+
+
+def _support_semantic_llm_with_generation(generation_answer: str) -> ScriptedRouterLLM:
+    support_payload = json.dumps(
+        {
+            "intent": "support",
+            "action": "start_support",
+            "needs_rewrite": False,
+            "product": None,
+            "confidence": 0.95,
+        }
+    )
+    return ScriptedRouterLLM([generation_answer, support_payload, generation_answer])

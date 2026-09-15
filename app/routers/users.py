@@ -7,6 +7,7 @@ from app.domain.entities import User, UserRole
 from app.schemas import (
     CreateUserRequest,
     UpdateUserRequest,
+    UserListResponse,
     UserResponse,
     UserRoleUpdateRequest,
     UserStatusUpdateRequest,
@@ -28,6 +29,15 @@ def _user_response(user: User) -> UserResponse:
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user: User = Depends(get_current_user)) -> UserResponse:
     return _user_response(current_user)
+
+
+@router.get("", response_model=UserListResponse)
+def list_users(
+    _current_user: User = Depends(require_role(UserRole.ADMIN)),
+    service: UserAdminService = Depends(get_user_admin_service),
+) -> UserListResponse:
+    users = service.list_users()
+    return UserListResponse(items=[_user_response(user) for user in users])
 
 
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)

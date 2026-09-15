@@ -54,8 +54,10 @@ def test_03_lead_active_price_question_resumes_in_same_response() -> None:
     orchestrator, knowledge, *_ = make_orchestrator()
     cid = "resume-3"
     _setup_lead_awaiting_phone(orchestrator, cid)
+    queries_before = len(knowledge.queries)
     result = orchestrator.handle(cid, "How much does TINY cost?")
-    assert knowledge.queries
+    assert len(knowledge.queries) == queries_before
+    assert "earkart.com" in result.response.lower()
     assert _phone_prompt_snippet() in result.response.lower()
     assert result.awaiting_field == "phone"
 
@@ -74,7 +76,16 @@ def test_04_lead_active_multiple_knowledge_questions_resume_once() -> None:
     assert result.awaiting_field == "phone"
 
 
-def test_05_no_lead_active_knowledge_only() -> None:
+def test_informal_know_more_during_phone_collection_retrieves() -> None:
+    orchestrator, knowledge, *_ = make_orchestrator()
+    cid = "resume-informal"
+    _setup_lead_awaiting_phone(orchestrator, cid)
+    result = orchestrator.handle(cid, "i wanna know more in deatils of tiny")
+    assert knowledge.queries
+    assert result.lead_collection_active is True
+    assert result.awaiting_field == "phone"
+    assert result.conversation_goal == ConversationGoal.LEAD
+    assert _phone_prompt_snippet() in result.response.lower()
     orchestrator, knowledge, *_ = make_orchestrator()
     result = orchestrator.handle("resume-5", "What is the main feature of TINY?")
     assert knowledge.queries
@@ -168,5 +179,5 @@ def test_support_ticket_collection_resumes_after_knowledge() -> None:
     result = orchestrator.handle(cid, "What is BTE?")
     assert knowledge.queries[-1] == "What is BTE?"
     assert result.conversation_goal == ConversationGoal.SUPPORT
-    assert "support team to reach you" in result.response.lower()
+    assert "our team to reach you" in result.response.lower()
     assert tickets.tickets == []

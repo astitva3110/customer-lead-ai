@@ -22,7 +22,9 @@ from app.helpers.phone import (
     phone_validation_reply,
 )
 from app.interfaces.providers.business import TicketTool
-from app.services.conversation.models import ConversationState, SupportWorkflow, TicketStatus
+from app.helpers.conversation_reply import support_ticket_offer_reply
+from app.helpers.quick_replies import set_ticket_choice_offer
+from app.services.conversation.models import ConversationState, SupportWorkflow, TicketStatus, TurnIntent
 from app.services.conversation.query_rewriter import apply_named_product, extract_product
 
 logger = logging.getLogger(__name__)
@@ -34,8 +36,8 @@ def prompt_for_support_field(field: str, *, name: str = "") -> str:
     display_name = normalize_person_name(name)
     if field == "phone":
         if display_name:
-            return f"Thanks, {display_name}. What's the best number for our support team to reach you on?"
-        return "What's the best number for our support team to reach you on?"
+            return f"Thanks, {display_name}. What's the best number for our team to reach you on?"
+        return "What's the best number for our team to reach you on?"
     if field == "name":
         return "What name should our team use when they reach you?"
     if field == "product":
@@ -125,6 +127,15 @@ class SupportService:
         if missing:
             state.support_workflow = SupportWorkflow.UNDERSTANDING_ISSUE
             state.awaiting_field = ""
+        if (
+            state.current_turn_intent == TurnIntent.SUPPORT_INTENT
+            and not state.support_collection_active
+            and not state.awaiting_field
+        ):
+            state.response = support_ticket_offer_reply(state)
+            set_ticket_choice_offer(state)
+            state.trace["needs_natural_reply"] = False
+            return state
         state.response = ""
         state.trace["needs_natural_reply"] = True
         return state

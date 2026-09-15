@@ -28,6 +28,9 @@ def run_migrations(engine: Engine) -> None:
                         "NOT NULL DEFAULT NOW()"
                     )
                 )
+        if "closed_by" not in columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE leads ADD COLUMN closed_by VARCHAR(64)"))
         with engine.begin() as connection:
             connection.execute(
                 text(
@@ -57,4 +60,9 @@ def run_migrations(engine: Engine) -> None:
                         "ALTER TABLE support_tickets ADD COLUMN updated_at TIMESTAMPTZ "
                         "NOT NULL DEFAULT NOW()"
                     )
+                )
+        if "closed_by" not in columns:
+            with engine.begin() as connection:
+                connection.execute(
+                    text("ALTER TABLE support_tickets ADD COLUMN closed_by VARCHAR(64)")
                 )

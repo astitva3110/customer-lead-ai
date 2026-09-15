@@ -4,6 +4,7 @@ from typing import Any
 
 from app.services.conversation.models import ConversationState
 from app.services.diagnostics.recorder import tracing_enabled
+from app.helpers.quick_replies import quick_replies_from_trace
 
 
 def chat_result_payload(result: ConversationState) -> dict[str, Any]:
@@ -20,6 +21,7 @@ def chat_result_payload(result: ConversationState) -> dict[str, Any]:
             }
             for source in result.sources
         ],
+        "quick_replies": quick_replies_from_trace(result),
     }
     trace_id = (result.trace or {}).get("trace_id")
     if trace_id and tracing_enabled():

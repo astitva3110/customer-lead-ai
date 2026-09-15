@@ -20,6 +20,13 @@ class InMemoryUserRepository:
     def list_users(self) -> list[User]:
         return list(self._users.values())
 
+    def get_emails_by_ids(self, user_ids: set[str]) -> dict[str, str]:
+        return {
+            user_id: user.email
+            for user_id, user in self._users.items()
+            if user_id in user_ids
+        }
+
     def create_user(self, user: User) -> User:
         self._users[user.user_id] = user
         return user

@@ -42,6 +42,10 @@ class ConversationOrchestrator:
         cid = cid or str(uuid.uuid4())
         state = self._store.get(cid) or ConversationState(conversation_id=cid)
         state.conversation_id = cid
+        from app.config import settings
+        from app.helpers.conversation_session import apply_idle_session_timeout, touch_session_activity
+
+        apply_idle_session_timeout(state, settings.conversation_session_timeout_minutes)
         apply_inbound_identity(
             state,
             channel=resolved_channel,
@@ -50,7 +54,6 @@ class ConversationOrchestrator:
             user_name=user_name,
         )
         state.user_message = message
-        from app.config import settings
         from app.helpers.phone import normalize_region
 
         region = normalize_region(country) or normalize_region(state.session_country) or normalize_region(
@@ -65,6 +68,9 @@ class ConversationOrchestrator:
         state.query_rewritten = ""
         before = snapshot_state(state)
         state.trace = {"state_before": before}
+        from app.helpers.user_language import touch_response_language
+
+        touch_response_language(state)
         from app.services.diagnostics.recorder import TraceSession, tracing_enabled
 
         session = TraceSession.start(state, message)
@@ -100,6 +106,7 @@ class ConversationOrchestrator:
                 print_chat_debug_console(session.trace)
             self._persist_trace(session.trace)
             log_trace(result)
+            touch_session_activity(result)
             self._store.save(result)
             return result
         except Exception as exc:

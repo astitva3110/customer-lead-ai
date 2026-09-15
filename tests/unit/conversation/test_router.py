@@ -81,6 +81,28 @@ def test_tell_me_about_during_lead_retrieves_and_keeps_goal() -> None:
     assert routed.product == "TINY"
 
 
+def test_know_more_details_during_phone_collection_retrieves() -> None:
+    routed = ChatRouter().route(
+        ConversationState(
+            user_message="i wanna know more in deatils of tiny",
+            mode=ChatMode.LEAD,
+            conversation_goal=ConversationGoal.LEAD,
+            product="TINY",
+            user_name="Astitva",
+            lead_intent=True,
+            lead_collection_active=True,
+            awaiting_field="phone",
+            lead_status=LeadStatus.COLLECTING,
+        )
+    )
+    assert routed.trace.get("should_retrieve") is True
+    assert routed.current_turn_intent == "KNOWLEDGE"
+    assert routed.conversation_goal == ConversationGoal.LEAD
+    assert routed.return_mode == ChatMode.LEAD
+    assert routed.awaiting_field == "phone"
+    assert routed.user_name == "Astitva"
+
+
 def test_how_are_you_greeting_does_not_retrieve() -> None:
     routed = ChatRouter().route(ConversationState(user_message="Hi, how are you?"))
     assert routed.trace.get("should_retrieve") is False

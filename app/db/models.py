@@ -39,6 +39,7 @@ class LeadRow(AppBase):
     product: Mapped[str] = mapped_column(Text, nullable=False)
     conversation_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default=RecordStatus.OPEN.value)
+    closed_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
 
@@ -52,6 +53,7 @@ class LeadRow(AppBase):
             product=self.product,
             conversation_id=self.conversation_id,
             status=RecordStatus(self.status),
+            closed_by=self.closed_by,
             created_at=self.created_at,
             updated_at=self.updated_at,
         )
@@ -67,6 +69,7 @@ class LeadRow(AppBase):
             product=lead.product,
             conversation_id=lead.conversation_id,
             status=lead.status.value,
+            closed_by=lead.closed_by,
         )
 
 
@@ -115,6 +118,7 @@ class SupportTicketRow(AppBase):
     issue: Mapped[str] = mapped_column(Text, nullable=False)
     conversation_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default=RecordStatus.OPEN.value)
+    closed_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
 
@@ -127,6 +131,7 @@ class SupportTicketRow(AppBase):
             issue=self.issue,
             conversation_id=self.conversation_id,
             status=RecordStatus(self.status),
+            closed_by=self.closed_by,
             created_at=self.created_at,
             updated_at=self.updated_at,
         )
@@ -141,6 +146,7 @@ class SupportTicketRow(AppBase):
             issue=ticket.issue,
             conversation_id=ticket.conversation_id,
             status=ticket.status.value,
+            closed_by=ticket.closed_by,
         )
 
 

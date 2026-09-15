@@ -29,6 +29,15 @@ class PostgresUserRepository:
             rows = session.execute(select(UserRow).order_by(UserRow.created_at)).scalars().all()
             return [row.to_entity() for row in rows]
 
+    def get_emails_by_ids(self, user_ids: set[str]) -> dict[str, str]:
+        if not user_ids:
+            return {}
+        with self._session_factory() as session:
+            rows = session.execute(
+                select(UserRow.user_id, UserRow.email).where(UserRow.user_id.in_(user_ids))
+            ).all()
+            return {user_id: email for user_id, email in rows}
+
     def create_user(self, user: User) -> User:
         with self._session_factory() as session:
             row = UserRow.from_entity(user)

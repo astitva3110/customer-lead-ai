@@ -4,7 +4,11 @@ import logging
 import time
 from typing import Any
 
+from app.helpers.user_language import response_language
 from app.helpers.workflow_resume import append_workflow_resume_after_knowledge, next_missing_lead_field
+from app.helpers.query_normalize import looks_like_price_query
+from app.helpers.conversation_reply import price_query_reply
+from app.helpers.quick_replies import attach_lead_offer_buttons, attach_product_interest_quick_replies
 from app.services.conversation.models import ConversationState
 from app.services.conversation.query_rewriter import QueryRewriter
 from app.services.diagnostics.recorder import current_trace, record_final_context, record_query, record_retrieval
@@ -53,6 +57,22 @@ class KnowledgeFlow:
         state.trace["resolved_query"] = retrieval_query
         state.trace["sub_questions"] = retrieval_queries
         state.trace["query_rewrite_ms"] = rewrite_ms
+        if looks_like_price_query(original_query):
+            reply = price_query_reply(state.product)
+            state.response = append_workflow_resume_after_knowledge(state, reply)
+            if not state.trace.get("lead_resume_appended"):
+                attach_lead_offer_buttons(state)
+            state.sources = []
+            state.trace["retrieval_used"] = False
+            state.trace["retrieval_started"] = False
+            state.trace["price_lead_offer"] = True
+            state.trace["model_used"] = ""
+            logger.info(
+                "KNOWLEDGE -> PRICE_SHORTCUT product=%s lead_resume=%s",
+                state.product,
+                bool(state.trace.get("lead_resume_appended")),
+            )
+            return state
         if current_trace():
             record_query(state, latency_ms=rewrite_ms)
         retrieval_started = time.perf_counter()
@@ -111,6 +131,7 @@ class KnowledgeFlow:
             state.sources = []
             state.trace["model_used"] = ""
             state.trace["retrieval_used"] = False
+            attach_product_interest_quick_replies(state)
             return state
         if current_trace():
             record_final_context(hits)
@@ -121,7 +142,11 @@ class KnowledgeFlow:
             state.trace["sales_pitch_from_rag"] = True
             return state
         generation_started = time.perf_counter()
-        result = self._generation.generate(original_query, hits)
+        result = self._generation.generate(
+            original_query,
+            hits,
+            response_language=response_language(state),
+        )
         logger.info("RAG COMPLETE grounded=%s", bool(result.grounded))
         trace = current_trace()
         if trace and trace.generation:
@@ -133,18 +158,9 @@ class KnowledgeFlow:
         state.trace["grounded"] = bool(result.grounded)
         state.trace["source_ids"] = list(result.source_ids)
         state.response = append_workflow_resume_after_knowledge(state, result.answer)
-        logger.info(
-            "FINAL RESPONSE PATH intent=%s lead_collection_active=%s awaiting_field=%s "
-            "next_missing_field=%s lead_resume_appended=%s response_chars=%s",
-            state.intent,
-            state.lead_collection_active,
-            state.awaiting_field,
-            (state.trace or {}).get("next_missing_field"),
-            (state.trace or {}).get("lead_resume_appended"),
-            len(state.response or ""),
-        )
         if not result.grounded:
             state.sources = []
+            attach_product_interest_quick_replies(state)
             return state
         by_id = {hit.chunk_id: hit for hit in hits}
         state.sources = [
@@ -157,6 +173,7 @@ class KnowledgeFlow:
             for source_id in result.source_ids
             if source_id in by_id
         ]
+        attach_product_interest_quick_replies(state)
         return state
 
 

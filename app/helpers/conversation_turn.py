@@ -4,14 +4,24 @@ import re
 
 from app.services.conversation.models import ConversationState
 
+_GREETING_HEAD = (
+    r"(?:"
+    r"h+i+!*|"
+    r"he+y+!*|"
+    r"hell+o+!*|"
+    r"hiya|howdy|hola|"
+    r"namaste|namaskar|pranam|"
+    r"salaam|salam|assalam(?:u)?(?:\s+alaikum)?|"
+    r"yo|sup|"
+    r"good\s+(?:morning|afternoon|evening|night)"
+    r")"
+)
 GREETING_ONLY_RE = re.compile(
-    r"^(?:hi|hello|hey|hiya|howdy|good morning|good afternoon|good evening)"
-    r"(?:[\s,!.]+(?:there|hi|hello))?"
-    r"[\s!.]*$",
+    rf"^{_GREETING_HEAD}(?:[\s,!.]+(?:there|hi|hello|namaste|hey))?[\s!.]*$",
     re.IGNORECASE,
 )
 GREETING_PREFIX_RE = re.compile(
-    r"^(hi|hello|hey|hiya|howdy|good morning|good afternoon|good evening)[,!.\s]+",
+    rf"^({_GREETING_HEAD})[,!.\s]+",
     re.IGNORECASE,
 )
 GREETING_SMALLTALK_RE = re.compile(
@@ -20,7 +30,20 @@ GREETING_SMALLTALK_RE = re.compile(
     re.IGNORECASE,
 )
 SHORT_YES_RE = re.compile(
-    r"^(yes|yeah|yep|yup|sure|ok|okay|please|y|haan|acha)(?:\s+(?:plz|please|pls))?[\s!.]*$",
+    r"^(yes|yeah|yep|yup|sure|ok|okay|alright|all right|please|y|haan|acha)"
+    r"(?:\s+(?:plz|please|pls))?[\s!.]*$",
+    re.IGNORECASE,
+)
+LEAD_PROCEED_RE = re.compile(
+    r"(?:"
+    r"\b(?:ok|okay|yes|yeah|yep|yup|sure|alright)\b.{0,40}\b(?:create|connect|proceed|go ahead)\b"
+    r"|"
+    r"\bcreate(?:\s+(?:it|this|(?:a|the)(?:\s+sales)?\s+lead))\b"
+    r"|"
+    r"\bgo ahead\b|\blet'?s (?:do|proceed|go)\b|\bplease (?:do|proceed)\b"
+    r"|"
+    r"\bhaan kar do\b|\bkar do\b"
+    r")",
     re.IGNORECASE,
 )
 ACK_ONLY_RE = re.compile(
@@ -55,11 +78,12 @@ OFFERED_INFO_RE = re.compile(
 )
 OFFERED_CALLBACK_RE = re.compile(
     r"arrange a callback|call you|contact you|callback\?|someone (?:to )?call|"
-    r"sales team|connect you",
+    r"connect you with our team|connect you",
     re.IGNORECASE,
 )
 OFFERED_SUPPORT_RE = re.compile(
-    r"support team|customer service|connect (?:you )?(?:with|to) (?:our |the )?support",
+    r"connect you with our team|customer service|connect (?:you )?(?:with|to) (?:our |the )?support|"
+    r"support ticket|open a (?:support )?ticket|create a support ticket",
     re.IGNORECASE,
 )
 PHONE_REFUSAL_RE = re.compile(
@@ -112,6 +136,15 @@ def is_short_yes(message: str) -> bool:
     return bool(SHORT_YES_RE.match((message or "").strip()))
 
 
+def is_lead_proceed(message: str) -> bool:
+    return bool(LEAD_PROCEED_RE.search((message or "").strip()))
+
+
+def accepts_sales_offer(message: str) -> bool:
+    text = (message or "").strip()
+    return is_short_yes(text) or is_lead_proceed(text)
+
+
 def is_acknowledgement_only(message: str) -> bool:
     return bool(ACK_ONLY_RE.match((message or "").strip()))
 
@@ -135,6 +168,14 @@ def is_tell_more(message: str) -> bool:
 
 def is_short_no(message: str) -> bool:
     return bool(SHORT_NO_RE.match((message or "").strip()))
+
+
+def accepting_knowledge_followup(message: str, assistant_text: str) -> bool:
+    return (
+        is_short_yes(message)
+        and offered_product_information(assistant_text)
+        and not offered_support_help(assistant_text)
+    )
 
 
 def offered_product_information(assistant_text: str) -> bool:

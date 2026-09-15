@@ -41,6 +41,11 @@ class SourceChunk(BaseModel):
     score: float
 
 
+class QuickReply(BaseModel):
+    id: str
+    label: str
+
+
 class ChatResponse(BaseModel):
     model_config = ConfigDict(exclude_none=True)
 
@@ -49,6 +54,7 @@ class ChatResponse(BaseModel):
     response: str
     answer: str
     sources: list[SourceChunk]
+    quick_replies: list[QuickReply] = Field(default_factory=list)
     debug_trace_id: str | None = None
 
 
@@ -160,6 +166,10 @@ class UserResponse(BaseModel):
     is_active: bool
 
 
+class UserListResponse(BaseModel):
+    items: list[UserResponse]
+
+
 class CreateUserRequest(BaseModel):
     email: str = Field(min_length=3, max_length=320)
     password: str = Field(min_length=8, max_length=128)
@@ -186,6 +196,7 @@ class LeadSummary(BaseModel):
     city: str
     product: str
     status: str
+    closed_by: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
 
@@ -208,6 +219,7 @@ class LeadListResponse(BaseModel):
 
 class LeadUpdateRequest(BaseModel):
     status: str
+    closed_by: str | None = None
 
 
 class SupportSummary(BaseModel):
@@ -217,6 +229,7 @@ class SupportSummary(BaseModel):
     product: str
     issue: str
     status: str
+    closed_by: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
 
@@ -232,3 +245,4 @@ class SupportListResponse(BaseModel):
 
 class SupportUpdateRequest(BaseModel):
     status: str
+    closed_by: str | None = None

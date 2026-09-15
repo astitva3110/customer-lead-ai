@@ -71,6 +71,8 @@ SPELLING_FIXES = {
     "featurs": "features",
     "infomation": "information",
     "informaton": "information",
+    "deatils": "details",
+    "detials": "details",
     "whant": "want",
     "turining": "turning",
     "turnin": "turning",
@@ -174,8 +176,13 @@ def extract_product(message: str) -> str:
 
 
 def apply_named_product(state: ConversationState) -> None:
+    from app.helpers.conversation_extract import looks_like_general_hearing_concern
+
     message = routing_query(state) or (state.user_message or "")
     if re.search(r"\bdifference\b|\bcompare\b|\bvs\.?\b", message, flags=re.IGNORECASE):
+        return
+    if looks_like_general_hearing_concern(message) and not extract_product(message):
+        state.product = ""
         return
     named = extract_product(message)
     if not named:
@@ -246,6 +253,8 @@ class QueryRewriter:
         original = (state.user_message or "").strip()
         source = (state.query_rewritten or original).strip()
         trace = state.trace or {}
+        if trace.get("needs_rewrite") is False:
+            return state
         if bool(trace.get("semantic_router_used")):
             canonical = str(trace.get("canonical_query") or "").strip()
             if usable_canonical_query(canonical):

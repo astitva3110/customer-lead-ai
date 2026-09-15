@@ -81,10 +81,11 @@ class FakeLeadRepo:
     def get_lead(self, lead_id: str):
         return self.lead if lead_id == self.lead.lead_id else None
 
-    def update_lead_status(self, lead_id: str, status: RecordStatus):
+    def update_lead_status(self, lead_id: str, status: RecordStatus, *, closed_by: str | None = None):
         if lead_id != self.lead.lead_id:
             return None
         self.lead.status = status
+        self.lead.closed_by = closed_by if status == RecordStatus.CLOSED else None
         self.lead.updated_at = datetime(2026, 8, 22, 1, 0, tzinfo=timezone.utc)
         return self.lead
 
@@ -102,10 +103,11 @@ class FakeTicketRepo:
     def get_ticket(self, ticket_id: str):
         return self.ticket if ticket_id == self.ticket.ticket_id else None
 
-    def update_ticket_status(self, ticket_id: str, status: RecordStatus):
+    def update_ticket_status(self, ticket_id: str, status: RecordStatus, *, closed_by: str | None = None):
         if ticket_id != self.ticket.ticket_id:
             return None
         self.ticket.status = status
+        self.ticket.closed_by = closed_by if status == RecordStatus.CLOSED else None
         self.ticket.updated_at = datetime(2026, 8, 22, 1, 0, tzinfo=timezone.utc)
         return self.ticket
 
@@ -118,17 +120,25 @@ class FakeTraceRepo:
         return self.conversation if conversation_id == self.conversation.conversation_id else None
 
 
+class FakeUserRepo:
+    def __init__(self, users: list) -> None:
+        self._users = {user.user_id: user.email for user in users}
+
+    def get_emails_by_ids(self, user_ids: set[str]) -> dict[str, str]:
+        return {user_id: email for user_id, email in self._users.items() if user_id in user_ids}
+
+
 def test_leads_require_authentication() -> None:
     with user_repo([]):
         client = TestClient(app)
         assert client.get("/leads").status_code == 401
 
 
-def test_user_cannot_list_leads() -> None:
+def test_user_can_list_leads() -> None:
     user, _ = make_user(role=UserRole.USER)
     with user_repo([user]), as_user(user):
         client = TestClient(app)
-        assert client.get("/leads").status_code == 403
+        assert client.get("/leads").status_code == 200
 
 
 def test_admin_can_list_and_update_lead() -> None:
@@ -137,8 +147,11 @@ def test_admin_can_list_and_update_lead() -> None:
     conversation = _conversation(lead.conversation_id)
     from app.dependencies import get_lead_admin_service
 
+    from app.dependencies import get_user_repository
+
     service = LeadAdminService(FakeLeadRepo(lead), FakeTraceRepo(conversation))
     app.dependency_overrides[get_lead_admin_service] = lambda: service
+    app.dependency_overrides[get_user_repository] = lambda: FakeUserRepo([admin])
     try:
         with user_repo([admin]), as_user(admin):
             client = TestClient(app)
@@ -157,9 +170,12 @@ def test_admin_can_list_and_update_lead() -> None:
 
             patched = client.patch(f"/leads/{lead.lead_id}", json={"status": "closed"})
             assert patched.status_code == 200
-            assert patched.json()["status"] == "closed"
+            body = patched.json()
+            assert body["status"] == "closed"
+            assert body["closed_by"] == admin.email
     finally:
         app.dependency_overrides.pop(get_lead_admin_service, None)
+        app.dependency_overrides.pop(get_user_repository, None)
 
 
 def test_super_admin_can_manage_leads() -> None:
@@ -184,8 +200,11 @@ def test_customer_service_admin_flow() -> None:
     conversation = _conversation(ticket.conversation_id)
     from app.dependencies import get_support_admin_service
 
+    from app.dependencies import get_user_repository
+
     service = SupportAdminService(FakeTicketRepo(ticket), FakeTraceRepo(conversation))
     app.dependency_overrides[get_support_admin_service] = lambda: service
+    app.dependency_overrides[get_user_repository] = lambda: FakeUserRepo([admin])
     try:
         with user_repo([admin]), as_user(admin):
             client = TestClient(app)
@@ -204,16 +223,65 @@ def test_customer_service_admin_flow() -> None:
                 json={"status": "closed"},
             )
             assert patched.status_code == 200
-            assert patched.json()["status"] == "closed"
+            body = patched.json()
+            assert body["status"] == "closed"
+            assert body["closed_by"] == admin.email
     finally:
         app.dependency_overrides.pop(get_support_admin_service, None)
+        app.dependency_overrides.pop(get_user_repository, None)
 
 
-def test_user_cannot_access_customer_service() -> None:
+def test_user_can_view_and_update_customer_service() -> None:
     user, _ = make_user(role=UserRole.USER)
-    with user_repo([user]), as_user(user):
-        client = TestClient(app)
-        assert client.get("/customer-service").status_code == 403
+    ticket = _ticket()
+    conversation = _conversation(ticket.conversation_id)
+    from app.dependencies import get_support_admin_service
+
+    from app.dependencies import get_user_repository
+
+    service = SupportAdminService(FakeTicketRepo(ticket), FakeTraceRepo(conversation))
+    app.dependency_overrides[get_support_admin_service] = lambda: service
+    app.dependency_overrides[get_user_repository] = lambda: FakeUserRepo([user])
+    try:
+        with user_repo([user]), as_user(user):
+            client = TestClient(app)
+            assert client.get("/customer-service").status_code == 200
+            assert client.get(f"/customer-service/{ticket.ticket_id}").status_code == 200
+            patched = client.patch(
+                f"/customer-service/{ticket.ticket_id}",
+                json={"status": "closed"},
+            )
+            assert patched.status_code == 200
+            body = patched.json()
+            assert body["status"] == "closed"
+            assert body["closed_by"] == user.email
+    finally:
+        app.dependency_overrides.pop(get_support_admin_service, None)
+        app.dependency_overrides.pop(get_user_repository, None)
+
+
+def test_reopening_lead_clears_closed_by() -> None:
+    admin, _ = make_user(role=UserRole.ADMIN)
+    lead = _lead(status=RecordStatus.CLOSED, closed_by=admin.user_id)
+    from app.dependencies import get_lead_admin_service
+
+    from app.dependencies import get_user_repository
+
+    service = LeadAdminService(FakeLeadRepo(lead), FakeTraceRepo(_conversation(lead.conversation_id)))
+    app.dependency_overrides[get_lead_admin_service] = lambda: service
+    app.dependency_overrides[get_user_repository] = lambda: FakeUserRepo([admin])
+    try:
+        with user_repo([admin]), as_user(admin):
+            client = TestClient(app)
+            patched = client.patch(f"/leads/{lead.lead_id}", json={"status": "open"})
+            assert patched.status_code == 200
+            body = patched.json()
+            assert body["status"] == "open"
+            assert body["closed_by"] is None
+    finally:
+        app.dependency_overrides.pop(get_lead_admin_service, None)
+        app.dependency_overrides.pop(get_user_repository, None)
+
 
 def test_new_lead_defaults_to_open() -> None:
     lead = Lead(

@@ -50,6 +50,7 @@ class Lead:
     conversation_id: str
     lead_id: str = field(default_factory=lambda: str(uuid4()))
     status: RecordStatus = RecordStatus.OPEN
+    closed_by: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -63,6 +64,7 @@ class SupportTicket:
     conversation_id: str
     ticket_id: str = field(default_factory=lambda: str(uuid4()))
     status: RecordStatus = RecordStatus.OPEN
+    closed_by: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

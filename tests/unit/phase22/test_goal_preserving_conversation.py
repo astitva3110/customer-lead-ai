@@ -19,9 +19,9 @@ def test_conversation_a_buy_then_knowledge_then_callback() -> None:
     price = orchestrator.handle(cid, "what is the price?")
     assert price.conversation_goal == ConversationGoal.LEAD
     assert price.current_turn_intent == TurnIntent.KNOWLEDGE
-    assert price.trace.get("should_retrieve") is True
-    assert "TINY" in knowledge.queries[-1]
-    assert "price" in knowledge.queries[-1].lower()
+    assert "earkart.com" in price.response.lower()
+    assert "our team" in price.response.lower()
+    assert price.trace.get("price_lead_offer") is True
 
     warranty = orchestrator.handle(cid, "what about warranty?")
     assert warranty.conversation_goal == ConversationGoal.LEAD

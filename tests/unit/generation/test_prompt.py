@@ -54,6 +54,25 @@ def test_user_prompt_uses_stable_source_ids() -> None:
     assert "Never omit source_ids." not in prompt
 
 
+def test_user_prompt_includes_hearing_health_guidance() -> None:
+    prompt = build_generation_user_prompt(
+        "i have 30 percent hearing loss in one ear",
+        [_hit("chunk_123", "An audiologist can evaluate your hearing.")],
+    )
+    assert "hearing-health or hearing-loss question" in prompt
+    assert "Do not ask about product battery" in prompt
+    assert "Do not end with a follow-up question." in prompt
+
+
+def test_user_prompt_includes_response_language_instruction() -> None:
+    prompt = build_generation_user_prompt(
+        "kya hai TINY",
+        [_hit("chunk_123", "TINY is a rechargeable hearing aid.")],
+        response_language="hi",
+    )
+    assert "Reply entirely in Hindi using Devanagari script." in prompt
+
+
 def test_user_prompt_can_ask_for_a_greeting_without_new_facts() -> None:
     prompt = build_generation_user_prompt(
         "hi, what is earkart",

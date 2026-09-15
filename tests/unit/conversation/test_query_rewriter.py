@@ -1,6 +1,7 @@
 from app.services.conversation.models import ConversationState
 from app.services.conversation.query_rewriter import (
     QueryRewriter,
+    apply_named_product,
     extract_product,
     needs_rewrite,
     rewrite_query,
@@ -36,6 +37,24 @@ def test_filler_prefix_is_stripped_without_inventing_a_topic() -> None:
     state = ConversationState(user_message="ok what is tiny")
     QueryRewriter().apply(state)
     assert state.query_rewritten == "what is tiny"
+
+
+def test_hearing_loss_clears_stale_product() -> None:
+    from app.services.conversation.query_rewriter import apply_named_product
+
+    state = ConversationState(
+        user_message="i have 30 percent hearing loss in one ear",
+        product="TINY",
+    )
+    apply_named_product(state)
+    assert state.product == ""
+
+
+def test_hearing_loss_does_not_bind_stale_product() -> None:
+    assert not should_bind_product("i have hearing loss", "TINY")
+    state = ConversationState(user_message="i have hearing loss", product="TINY")
+    QueryRewriter().apply(state)
+    assert "TINY" not in (state.query_rewritten or state.user_message)
 
 
 def test_attribute_query_binds_known_product() -> None:
@@ -95,6 +114,17 @@ def test_canonical_query_bypasses_second_pass_when_semantic_used() -> None:
     QueryRewriter().apply(state)
     assert state.query_rewritten == "What is the warranty of TINY?"
     assert state.trace.get("query_rewrite_bypassed") is True
+
+
+def test_apply_skips_context_rewrite_when_decision_says_not_needed() -> None:
+    state = ConversationState(
+        user_message="What is the warranty of TINY?",
+        product="TINY",
+        query_rewritten="",
+        trace={"semantic_router_used": True, "needs_rewrite": False, "canonical_query": ""},
+    )
+    QueryRewriter().apply(state)
+    assert state.query_rewritten == ""
 
 
 def test_apply_falls_back_without_canonical_query() -> None:
