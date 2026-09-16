@@ -9,7 +9,7 @@ from app.providers.retrieval.keyword_retriever import KeywordCandidateRetriever
 from app.providers.retrieval.vector_retriever import VectorCandidateRetriever
 from app.kb.evaluation.retrieval_config import RetrievalConfig
 from app.kb.evaluation.search.backends import EmbeddingSession
-from app.kb.ingestion.indexing import Phase12VectorStore
+from app.kb.retrieval.runtime_config import build_production_vector_store
 from app.kb.retrieval.service import RetrievalService
 
 
@@ -43,7 +43,7 @@ def build_hybrid_retriever(
     rerank_candidate_k: int | None = None,
     min_score: float | None = None,
 ) -> HybridRetriever:
-    store = Phase12VectorStore(table_name=config.vector_table)
+    store = build_production_vector_store(config)
     vk = settings.vector_candidate_k if vector_k is None else vector_k
     kk = settings.keyword_candidate_k if keyword_k is None else keyword_k
     fk = settings.final_retrieval_k if final_k is None else final_k

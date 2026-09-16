@@ -13,7 +13,7 @@ from app.kb.embedding.config import EmbeddingConfig
 from app.kb.embedding.factory import create_embedding_provider
 from app.kb.evaluation.models import RankedHit
 from app.kb.evaluation.retrieval_config import RetrievalConfig
-from app.kb.ingestion.indexing import Phase12VectorStore
+from app.kb.retrieval.runtime_config import build_production_vector_store
 from app.kb.ingestion.models import Phase12ChunkRecord
 
 
@@ -116,7 +116,7 @@ class InMemoryBackend(RetrievalBackend):
 
 @dataclass
 class PgVectorBackend(RetrievalBackend):
-    store: Phase12VectorStore
+    store: object
     session: EmbeddingSession
     embedding_version: str
 
@@ -125,7 +125,7 @@ class PgVectorBackend(RetrievalBackend):
         if not config.vector_table:
             raise ValueError("vector_table required for pgvector mode")
         session = EmbeddingSession(device=device)
-        store = Phase12VectorStore(table_name=config.vector_table)
+        store = build_production_vector_store(config)
         return cls(store=store, session=session, embedding_version=config.embedding_version)
 
     def search(self, query: str, *, top_k: int) -> list[RankedHit]:

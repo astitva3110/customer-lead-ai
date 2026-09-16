@@ -1,8 +1,6 @@
 import logging
 from collections.abc import Callable
 from functools import lru_cache
-from pathlib import Path
-
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -21,7 +19,6 @@ from app.services.knowledge.ingestion_service import IngestionService
 
 logger = logging.getLogger(__name__)
 
-_RETRIEVAL_CONFIG = Path(__file__).resolve().parents[1] / "configs" / "retrieval" / "v2.yaml"
 _bearer = HTTPBearer(auto_error=False)
 
 
@@ -55,7 +52,7 @@ def get_chat_history_service() -> ChatHistoryService:
 def get_orchestrator() -> ConversationOrchestrator:
     from app.db.engine import ensure_schema, get_session_factory
     from app.graph.factory import build_conversation_orchestrator
-    from app.kb.evaluation.retrieval_config import RetrievalConfig
+    from app.kb.retrieval.runtime_config import load_runtime_retrieval_config
     from app.kb.retrieval.service import RetrievalService
     from app.providers.knowledge.hybrid_knowledge_service import HybridKnowledgeService
     from app.providers.retrieval.factory import build_knowledge_hybrid_retriever
@@ -64,7 +61,7 @@ def get_orchestrator() -> ConversationOrchestrator:
     from app.repositories.ticket import PostgresTicketRepository
 
     try:
-        config = RetrievalConfig.from_yaml(_RETRIEVAL_CONFIG)
+        config = load_runtime_retrieval_config()
         vector_service = RetrievalService.from_config(config)
         hybrid = build_knowledge_hybrid_retriever(config, vector_service=vector_service)
         knowledge = HybridKnowledgeService(
@@ -72,7 +69,7 @@ def get_orchestrator() -> ConversationOrchestrator:
             retrieval_version=config.embedding_version,
         )
     except Exception:
-        logger.exception("knowledge retriever initialization failed from %s", _RETRIEVAL_CONFIG)
+        logger.exception("knowledge retriever initialization failed for production retrieval config")
         raise
     try:
         ensure_schema()

@@ -31,7 +31,8 @@ class KbSettings(BaseSettings):
     phase12_chunking_algorithm_version: str = "phase12.0"
     phase12_embedding_input_manifest: str = "phase12-v1"
     phase12_embedding_version: str = "qwen_Qwen3-Embedding-0.6B_phase12_v1"
-    phase12_vector_table: str = "chunk_embeddings_phase12"
+    phase12_vector_table: str = "chunk_embeddings_v3_2"
+    retrieval_config_path: Path = Path("configs/retrieval/v3_2_pgvector.yaml")
     phase14_vector_smoke_table: str = "chunk_embeddings_kb_v2_smoke"
     phase14_smoke_chunk_count: int = 10
     phase16_kb_dataset_version: str = "phase16-v1"

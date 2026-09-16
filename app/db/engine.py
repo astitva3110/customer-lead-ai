@@ -28,3 +28,10 @@ def ensure_schema() -> None:
     engine = get_engine()
     AppBase.metadata.create_all(engine)
     run_migrations(engine)
+    _ensure_vector_store_schema()
+
+
+def _ensure_vector_store_schema() -> None:
+    from app.kb.retrieval.runtime_config import ensure_production_vector_store_schema
+
+    ensure_production_vector_store_schema()

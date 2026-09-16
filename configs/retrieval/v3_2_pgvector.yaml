@@ -1,3 +1,6 @@
+# Production PGVector retrieval defaults.
+# Runtime overrides (single source of truth): PHASE12_VECTOR_TABLE, EMBEDDING_VERSION,
+# KB_DATASET_VERSION, CHUNKING_ALGORITHM_VERSION, EMBEDDING_INPUT_MANIFEST in .env
 corpus_version: v3.2
 vector_table: chunk_embeddings_v3_2
 mode: pgvector
