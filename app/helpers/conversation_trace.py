@@ -123,6 +123,8 @@ def format_chat_trace(state: ConversationState) -> str:
 def log_trace(state: ConversationState) -> None:
     metadata = dict(state.retrieval_metadata or {})
     trace = dict(state.trace or {})
+    token_usage = dict(trace.get("token_usage") or {})
+    token_breakdown = dict(trace.get("token_usage_breakdown") or {})
     safe = redact_trace(
         {
             "conversation_id": state.conversation_id,

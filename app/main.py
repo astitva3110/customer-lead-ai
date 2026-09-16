@@ -2,9 +2,12 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.config import settings
 from app.error_handlers import register_error_handlers
+from app.helpers.rate_limit import limiter
 from app.routers import auth, channels, chat, customer_service, health, knowledge, leads, users
 from app.services.diagnostics.langsmith_tracing import configure_langsmith
 
@@ -18,6 +21,8 @@ app = FastAPI(
     description="Document-first knowledge base chatbot with vector retrieval.",
     version="0.3.0",
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 _cors_origins = [item.strip() for item in (settings.cors_allow_origins or "").split(",") if item.strip()]
 if _cors_origins:

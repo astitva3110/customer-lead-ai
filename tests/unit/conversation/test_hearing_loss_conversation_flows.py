@@ -3,6 +3,7 @@
 import json
 
 from app.helpers.conversation_extract import (
+    looks_like_acquisition_intent,
     looks_like_hearing_consultation_need,
     looks_like_product_interest_request,
 )
@@ -44,6 +45,17 @@ def test_hearing_loss_selection_question_is_consultation_not_support() -> None:
     assert looks_like_product_interest_request(PRODUCT_INTEREST)
 
 
+def test_hinglish_hearing_aid_request_is_acquisition_not_support() -> None:
+    for message in (
+        "mujhe hearing aid chaiye",
+        "hi mujhe ek hearing aid chaiye",
+        "mujhe ek hearing aid chahiye",
+        "hearing aid chahiye",
+    ):
+        assert looks_like_acquisition_intent(message)
+    assert not looks_like_acquisition_intent("my hearing aid is not working")
+
+
 def test_hearing_loss_query_routes_to_knowledge() -> None:
     orchestrator, knowledge, *_ = make_orchestrator()
     result = orchestrator.handle("hl-knowledge", HEARING_LOSS_QUERY)
@@ -62,6 +74,16 @@ def test_hearing_loss_answer_offers_product_interest_buttons() -> None:
     labels = [item["label"] for item in replies]
     assert "I want a hearing aid" in labels
     assert CONSULTATION_TRIAL_LABEL in labels
+
+
+def test_hinglish_hearing_aid_request_routes_to_lead_even_when_semantic_says_support() -> None:
+    orchestrator, *_ = make_orchestrator(llm=_support_semantic_llm())
+    result = orchestrator.handle("hinglish-acquisition", "mujhe hearing aid chaiye")
+    assert result.conversation_goal != ConversationGoal.SUPPORT
+    assert result.mode != ChatMode.SUPPORT
+    assert result.support_intent is False
+    assert result.current_turn_intent == TurnIntent.LEAD_INTENT
+    assert "having trouble" not in (result.response or "").lower()
 
 
 def test_i_want_a_hearing_aid_after_hearing_loss_is_sales_not_support() -> None:
@@ -88,8 +110,8 @@ def test_i_want_a_hearing_aid_button_click_after_hearing_loss_is_sales_not_suppo
     assert second.conversation_goal != ConversationGoal.SUPPORT
     assert second.mode != ChatMode.SUPPORT
     assert second.support_intent is False
-    assert second.trace.get("product_interest_override") is True
     assert "customer service team" not in (second.response or "").lower()
+    assert "having trouble" not in (second.response or "").lower()
 
 
 def test_create_trial_after_hearing_loss_starts_lead_collection() -> None:

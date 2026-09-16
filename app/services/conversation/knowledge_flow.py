@@ -4,6 +4,8 @@ import logging
 import time
 from typing import Any
 
+from app.helpers.conversation_reply import greeting_reply
+from app.helpers.conversation_turn import is_casual_conversation, is_greeting_only
 from app.helpers.user_language import response_language
 from app.helpers.workflow_resume import append_workflow_resume_after_knowledge, next_missing_lead_field
 from app.helpers.query_normalize import looks_like_price_query
@@ -37,6 +39,27 @@ class KnowledgeFlow:
         self._model_used = model_used
 
     def handle(self, state: ConversationState) -> ConversationState:
+        original_query = state.user_message or ""
+        if is_greeting_only(original_query):
+            state.response = greeting_reply(original_query)
+            state.sources = []
+            state.trace = dict(state.trace or {})
+            state.trace["should_retrieve"] = False
+            state.trace["retrieval_used"] = False
+            state.trace["retrieval_started"] = False
+            state.trace["greeting_shortcut"] = True
+            return state
+        if is_casual_conversation(original_query):
+            from app.helpers.conversation_reply import conversational_fallback
+
+            state.response = conversational_fallback(state)
+            state.sources = []
+            state.trace = dict(state.trace or {})
+            state.trace["should_retrieve"] = False
+            state.trace["retrieval_used"] = False
+            state.trace["retrieval_started"] = False
+            state.trace["social_shortcut"] = True
+            return state
         if not state.trace.get("should_retrieve", True):
             state.response = state.response or "Thanks, I've noted that."
             state.sources = []
@@ -44,7 +67,6 @@ class KnowledgeFlow:
             state.trace["retrieval_started"] = False
             return state
         rewrite_started = time.perf_counter()
-        original_query = state.user_message or ""
         self._rewriter.apply(state)
         trace = dict(state.trace or {})
         sub_questions = [str(item).strip() for item in (trace.get("sub_questions") or []) if str(item).strip()]

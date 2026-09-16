@@ -62,6 +62,16 @@ def test_localized_lead_created_hindi() -> None:
     assert "धन्यवाद" in text
 
 
+def test_build_conversation_prompt_includes_language_instruction() -> None:
+    from app.helpers.conversation_prompt import build_conversation_user_prompt
+
+    state = ConversationState(user_message="mujhe hearing aid chahiye")
+    touch_response_language(state)
+    prompt = build_conversation_user_prompt(state)
+    assert "hinglish" in prompt.lower()
+    assert "Hinglish" in prompt
+
+
 def test_build_generation_prompt_includes_language_instruction() -> None:
     from app.helpers.generation_prompt import build_generation_user_prompt
 

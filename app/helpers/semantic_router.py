@@ -6,13 +6,19 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from app.helpers.conversation_extract import (
+    looks_like_acquisition_intent,
     looks_like_device_support_issue,
     looks_like_general_hearing_concern,
     looks_like_product_interest_request,
     looks_like_requested_field_reply,
 )
 from app.helpers.conversation_history import compact_recent_history
-from app.helpers.conversation_turn import accepting_knowledge_followup, last_assistant_text
+from app.helpers.conversation_turn import (
+    accepting_knowledge_followup,
+    is_casual_conversation,
+    is_greeting_only,
+    last_assistant_text,
+)
 from app.helpers.generation_json import extract_json_object
 from app.helpers.query_normalize import looks_like_informational_question, looks_like_knowledge_request
 from app.helpers.state_manager import conversation_status_label, current_status_label
@@ -149,8 +155,19 @@ explicit "create lead" phrase:
 
 Examples:
 - "I want to buy Radius" → lead
+- "I want a hearing aid" → lead
+- "mujhe hearing aid chaiye" → lead
+- "mujhe ek hearing aid chahiye" → lead
 - "I want to create a sales lead for Radius" → lead
 - "ok create sale lead" → lead
+
+ACQUISITION vs SUPPORT (critical):
+- Wanting to obtain or buy a hearing aid is lead / start_lead, NOT support.
+- Only route to support when the user reports a problem with an existing device.
+Examples:
+- "mujhe hearing aid chaiye" → lead (wants to get one)
+- "My hearing aid stopped working" → support (device fault)
+- "hearing aid is not working" → support (device fault)
 
 6. KNOWLEDGE QUESTION
 Use knowledge / answer_knowledge when the user asks for information about:
@@ -393,7 +410,17 @@ def understanding_from_semantic(
     state: ConversationState,
 ) -> TurnUnderstanding:
     message = routing_query(state) or (state.user_message or "")
-    if looks_like_product_interest_request(message):
+    if is_casual_conversation(message):
+        return TurnUnderstanding(
+            turn_intent=TurnIntent.GENERAL,
+            needs_rag=False,
+            lead_intent=False,
+            support_intent=False,
+            information_updates=dict(phrase.information_updates or {}),
+            user_context_updates=phrase.user_context_updates,
+            confidence=max(result.confidence, phrase.confidence, 0.99),
+        )
+    if looks_like_acquisition_intent(message) and not looks_like_device_support_issue(message):
         named = extract_product(message)
         return TurnUnderstanding(
             turn_intent=TurnIntent.LEAD_INTENT,
@@ -527,10 +554,17 @@ def semantic_fallback_reason(
         return "invalid_json"
     if result.confidence < threshold:
         return "low_confidence"
+    if is_casual_conversation(message):
+        return "prefer_social_conversation"
+    if result.route == "KNOWLEDGE" and is_greeting_only(message):
+        return "prefer_social_conversation"
     if result.route == "SUPPORT" and (
         phrase.explicit_action == "create_lead"
         or (phrase.lead_intent and not phrase.support_intent)
-        or looks_like_product_interest_request(message)
+        or (
+            looks_like_acquisition_intent(message)
+            and not looks_like_device_support_issue(message)
+        )
     ):
         return "prefer_lead"
     if result.route == "GENERAL" and (

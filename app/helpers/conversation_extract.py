@@ -206,27 +206,51 @@ _HEARING_AID_WANT_RE = re.compile(
     r"\bi want (?:a |an |the )?hearing aids?\b",
     re.IGNORECASE,
 )
+_HEARING_AID_ACQUIRE_RE = re.compile(
+    r"\b(?:need|want|get|buy|purchase|order)\s+(?:a |an |the |ek )?hearing aids?\b",
+    re.IGNORECASE,
+)
+_HINGLISH_ACQUISITION_RE = re.compile(
+    r"(?:"
+    r"\b(?:mujhe|mujhko|muje|humein|humko)\s+(?:ek\s+)?hearing aids?\s+(?:chaiye|chahiye|chahie|lena hai|chahie)\b"
+    r"|\bhearing aids?\s+(?:chaiye|chahiye|chahie)\b"
+    r"|\b(?:mujhe|mujhko|muje)\s+ek\s+hearing aids?\b"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def looks_like_acquisition_intent(message: str) -> bool:
+    """User wants to obtain or buy a hearing aid/product — not reporting a device fault."""
+    text = (message or "").strip()
+    if not text:
+        return False
+    if looks_like_knowledge_request(text) or looks_like_informational_question(text):
+        return False
+    if looks_like_device_support_issue(text):
+        return False
+    if re.search(r"\bi want to\b", text, flags=re.IGNORECASE):
+        return False
+    if _HEARING_AID_WANT_RE.search(text) or _HEARING_AID_ACQUIRE_RE.search(text):
+        return True
+    if _HINGLISH_ACQUISITION_RE.search(text):
+        return True
+    named = extract_product(text)
+    if named:
+        if re.match(rf"^\s*i want\s+{re.escape(named)}\s*[\s!.?]*$", text, flags=re.IGNORECASE):
+            return True
+        if re.search(
+            rf"\b(?:mujhe|mujhko|muje)\s+(?:ek\s+)?{re.escape(named)}\s+(?:chaiye|chahiye|chahie)\b",
+            text,
+            flags=re.IGNORECASE,
+        ):
+            return True
+    return looks_like_purchase_intent(text)
 
 
 def looks_like_product_interest_request(message: str) -> bool:
     """Quick-reply or natural phrasing that expresses purchase interest — not support."""
-    from app.helpers.query_normalize import looks_like_informational_question, looks_like_knowledge_request
-
-    text = (message or "").strip()
-    if not text:
-        return False
-    if _HEARING_AID_WANT_RE.search(text):
-        return True
-    if looks_like_knowledge_request(text) or looks_like_informational_question(text):
-        return False
-    if re.search(r"\bi want to\b", text, flags=re.IGNORECASE):
-        return False
-    named = extract_product(text)
-    if not named:
-        return False
-    return bool(
-        re.match(rf"^\s*i want\s+{re.escape(named)}\s*[\s!.?]*$", text, flags=re.IGNORECASE)
-    )
+    return looks_like_acquisition_intent(message)
 
 
 def looks_like_device_support_issue(message: str) -> bool:

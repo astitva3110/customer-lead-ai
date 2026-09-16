@@ -110,6 +110,29 @@ def test_how_are_you_greeting_does_not_retrieve() -> None:
     assert routed.current_turn_intent == "GENERAL"
 
 
+def test_hi_variants_do_not_retrieve_even_with_semantic_knowledge() -> None:
+    import json
+
+    from tests.unit.conversation.test_semantic_router import ScriptedRouterLLM
+
+    knowledge_payload = json.dumps(
+        {
+            "intent": "knowledge",
+            "action": "answer_knowledge",
+            "needs_rewrite": False,
+            "product": None,
+            "confidence": 0.99,
+        }
+    )
+    llm = ScriptedRouterLLM(knowledge_payload)
+    router = ChatRouter(llm=llm)
+    for message in ("HI", "hi", "hiii", "hello", "heyyy", "namaste"):
+        routed = router.route(ConversationState(user_message=message))
+        assert routed.current_turn_intent == "GENERAL", message
+        assert routed.trace.get("should_retrieve") is False, message
+        assert routed.trace.get("needs_natural_reply") is True, message
+
+
 def test_greeting_plus_product_question_retrieves() -> None:
     routed = ChatRouter().route(ConversationState(user_message="Hi, I want to know about Bluup."))
     assert routed.trace.get("should_retrieve") is True

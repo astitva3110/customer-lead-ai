@@ -35,6 +35,7 @@ from app.helpers.conversation_extract import (
     looks_like_contact_request,
     looks_like_device_support_issue,
     looks_like_general_hearing_concern,
+    looks_like_acquisition_intent,
     looks_like_product_interest_request,
     looks_like_support_contact_request,
     looks_like_support_escalation_request,
@@ -246,6 +247,8 @@ class ChatRouter:
             if not understanding.needs_rag and looks_like_device_support_issue(state.user_message or ""):
                 return "active_support"
         message = state.user_message or ""
+        if is_greeting_only(message) or is_casual_conversation(message):
+            return "social_conversation"
         if (
             looks_like_general_hearing_concern(message)
             and not looks_like_device_support_issue(message)
@@ -260,8 +263,6 @@ class ChatRouter:
             and understanding.needs_rag
         ):
             return "knowledge_followup_acceptance"
-        if looks_like_product_interest_request(message):
-            return "product_interest_followup"
         return None
 
     def _apply_semantic_router(self, state: ConversationState, phrase):
@@ -421,10 +422,15 @@ class ChatRouter:
         semantic_used = self._apply_semantic_router(state, understanding)
         if semantic_used:
             understanding = semantic_used
-        forced = self._product_interest_understanding(state)
+        forced = self._acquisition_intent_override(state, understanding)
         if forced:
             understanding = forced
+            state.trace["acquisition_intent_override"] = True
             state.trace["product_interest_override"] = True
+        social = self._social_conversation_override(state, understanding)
+        if social:
+            understanding = social
+            state.trace["social_conversation_override"] = True
         self._apply_understanding(state, understanding)
         if not state.trace.get("semantic_router_used"):
             if self._should_refine(state, understanding):
@@ -471,9 +477,65 @@ class ChatRouter:
             record_turn_understanding(understanding.to_dict(), method=method)
         return state
 
+    def _social_conversation_override(
+        self,
+        state: ConversationState,
+        understanding: TurnUnderstanding,
+    ) -> TurnUnderstanding | None:
+        message = state.user_message or ""
+        if not is_casual_conversation(message):
+            return None
+        if understanding.turn_intent == TurnIntent.GENERAL and not understanding.needs_rag:
+            return None
+        return TurnUnderstanding(
+            turn_intent=TurnIntent.GENERAL,
+            needs_rag=False,
+            lead_intent=False,
+            support_intent=False,
+            information_updates=dict(understanding.information_updates or {}),
+            user_context_updates=understanding.user_context_updates,
+            confidence=max(understanding.confidence, 0.99),
+        )
+
+    def _acquisition_intent_override(
+        self,
+        state: ConversationState,
+        understanding: TurnUnderstanding,
+    ) -> TurnUnderstanding | None:
+        message = routing_query(state) or (state.user_message or "")
+        if not looks_like_acquisition_intent(message):
+            return None
+        if looks_like_device_support_issue(message):
+            return None
+        if understanding.turn_intent == TurnIntent.LEAD_INTENT and understanding.lead_intent:
+            return None
+        if understanding.turn_intent == TurnIntent.SUPPORT_INTENT or (
+            understanding.support_intent and not understanding.lead_intent
+        ):
+            named = extract_product(message)
+            updates = dict(understanding.information_updates or {})
+            if named:
+                updates["product"] = named
+            return TurnUnderstanding(
+                turn_intent=TurnIntent.LEAD_INTENT,
+                needs_rag=False,
+                lead_intent=True,
+                support_intent=False,
+                information_updates={
+                    "name": updates.get("name"),
+                    "phone": updates.get("phone"),
+                    "city": updates.get("city"),
+                    "product": updates.get("product"),
+                    "issue": None,
+                },
+                user_context_updates=understanding.user_context_updates,
+                confidence=max(understanding.confidence, 0.98),
+            )
+        return None
+
     def _product_interest_understanding(self, state: ConversationState) -> TurnUnderstanding | None:
         message = routing_query(state) or (state.user_message or "")
-        if not looks_like_product_interest_request(message):
+        if not looks_like_acquisition_intent(message):
             return None
         named = extract_product(message)
         return TurnUnderstanding(
@@ -680,8 +742,8 @@ class ChatRouter:
                 False,
                 support_context=in_support,
             )
-            or looks_like_product_interest_request(message)
-            or looks_like_product_interest_request(raw_message)
+            or looks_like_acquisition_intent(message)
+            or looks_like_acquisition_intent(raw_message)
         )
         support_contact = looks_like_support_contact_request(message) or looks_like_support_contact_request(
             raw_message

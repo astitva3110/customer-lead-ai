@@ -43,6 +43,11 @@ class RuntimeSettings(BaseSettings):
     default_country: str = ""
     conversation_session_timeout_minutes: int = 15
 
+    # Rate limiting (slowapi; per client IP)
+    rate_limit_enabled: bool = True
+    rate_limit_chat: str = "10/minute"
+    rate_limit_login: str = "5/minute"
+
     # Public web + channel webhooks (comma-separated origins; empty disables CORS)
     cors_allow_origins: str = ""
     channel_webhook_secret: str = ""

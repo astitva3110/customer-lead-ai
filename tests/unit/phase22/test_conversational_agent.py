@@ -27,11 +27,37 @@ def test_01_greeting_then_knowledge() -> None:
     assert knowledge.queries == []
     assert "hey" in hi.response.lower() or "help" in hi.response.lower()
     assert "earkart is" not in hi.response.lower()
+    assert hi.response != INSUFFICIENT_INFORMATION_MESSAGE
     asked = orchestrator.handle(cid, "What is Earkart?")
     assert knowledge.queries[-1] == "What is Earkart?"
     assert asked.mode == ChatMode.KNOWLEDGE
     assert asked.response != hi.response
     assert recorder.calls[-1]["temperature"] == 0.0
+
+
+def test_hi_uppercase_never_returns_insufficient_information() -> None:
+    import json
+
+    from tests.unit.conversation.fakes import RecordingLLM, make_orchestrator
+
+    knowledge = FakeKnowledge()
+    router_payload = json.dumps(
+        {
+            "intent": "knowledge",
+            "action": "answer_knowledge",
+            "needs_rewrite": False,
+            "product": None,
+            "confidence": 0.99,
+        }
+    )
+    orchestrator, knowledge, *_rest = make_orchestrator(
+        knowledge=knowledge,
+        llm=RecordingLLM(router_output=router_payload),
+    )
+    result = orchestrator.handle("p22-hi", "HI")
+    assert knowledge.queries == []
+    assert result.response != INSUFFICIENT_INFORMATION_MESSAGE
+    assert "help" in result.response.lower() or "hey" in result.response.lower() or "namaste" in result.response.lower()
 
 
 def test_02_knowledge_then_sales() -> None:

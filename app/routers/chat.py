@@ -1,8 +1,10 @@
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 
+from app.config import settings
+from app.helpers.rate_limit import limiter
 from app.services.conversation.orchestrator import ConversationOrchestrator
 from app.services.chat_history import ChatHistoryService
 from app.helpers.chat_api import chat_result_payload
@@ -33,19 +35,21 @@ def root_redirect():
 
 
 @router.post("/chat", response_model=ChatResponse, response_model_exclude_none=True)
+@limiter.limit(settings.rate_limit_chat)
 def chat(
-    request: ChatRequest,
+    request: Request,
+    chat_request: ChatRequest,
     orchestrator: ConversationOrchestrator = Depends(get_orchestrator),
 ) -> ChatResponse:
     result = orchestrator.handle(
-        request.conversation_id,
-        request.message,
-        country=request.country,
-        channel=request.channel,
-        origin=request.origin,
-        source=request.source,
-        phone=request.phone,
-        user_name=request.user_name,
+        chat_request.conversation_id,
+        chat_request.message,
+        country=chat_request.country,
+        channel=chat_request.channel,
+        origin=chat_request.origin,
+        source=chat_request.source,
+        phone=chat_request.phone,
+        user_name=chat_request.user_name,
     )
     return ChatResponse(**chat_result_payload(result))
 
