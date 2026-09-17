@@ -42,6 +42,8 @@ class RuntimeSettings(BaseSettings):
     # Chat / lead
     default_country: str = ""
     conversation_session_timeout_minutes: int = 15
+    # Shared with chatbot-frontend WIDGET_BACKEND_TOKEN for the widget proxy.
+    chat_service_token: str = ""
 
     # Rate limiting (slowapi; per client IP)
     rate_limit_enabled: bool = True

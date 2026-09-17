@@ -355,7 +355,9 @@ def test_debug_trace_id_only_when_enabled(monkeypatch, tmp_path: Path) -> None:
     app.dependency_overrides[get_orchestrator] = lambda: orchestrator
     try:
         client = TestClient(app)
-        response = client.post("/chat", json={"message": "What is TINY?"})
+        from tests.conftest import chat_service_headers
+
+        response = client.post("/chat", json={"message": "What is TINY?"}, headers=chat_service_headers())
         assert response.status_code == 200
         payload = response.json()
         assert payload["debug_trace_id"]

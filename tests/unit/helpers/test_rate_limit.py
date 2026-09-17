@@ -13,6 +13,7 @@ from app.config import settings
 from app.dependencies import get_orchestrator
 from app.helpers.rate_limit import client_ip, limiter
 from app.main import app
+from tests.conftest import chat_service_headers
 from tests.unit.conversation.fakes import FakeKnowledge
 from tests.validation.harness import make_graph_stack
 
@@ -62,8 +63,8 @@ def test_chat_endpoint_rate_limited_when_enabled() -> None:
         client = TestClient(app)
         payload = {"message": "What is TINY?"}
         for _ in range(10):
-            assert client.post("/chat", json=payload).status_code == 200
-        assert client.post("/chat", json=payload).status_code == 429
+            assert client.post("/chat", json=payload, headers=chat_service_headers()).status_code == 200
+        assert client.post("/chat", json=payload, headers=chat_service_headers()).status_code == 429
     finally:
         limiter.enabled = settings.rate_limit_enabled
         app.dependency_overrides.clear()

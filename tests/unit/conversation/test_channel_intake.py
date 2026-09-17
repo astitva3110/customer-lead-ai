@@ -7,6 +7,7 @@ from app.helpers.whatsapp_webhook_dedup import reset_whatsapp_webhook_dedup
 from app.main import app
 from app.schemas import ChatRequest
 from app.services.conversation.models import LeadStatus
+from tests.conftest import chat_service_headers
 from tests.unit.conversation.fakes import make_orchestrator
 from tests.unit.helpers.test_orai_webhook import CLOUD_TEXT
 
@@ -129,6 +130,7 @@ def test_chat_accepts_frontend_origin() -> None:
         response = client.post(
             "/chat",
             json={"message": "What is TINY?", "origin": "earkart.com"},
+            headers=chat_service_headers(),
         )
         assert response.status_code == 200
         assert response.json()["conversation_id"]

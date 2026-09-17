@@ -2,11 +2,13 @@ import logging
 from collections.abc import Callable
 from functools import lru_cache
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.config import settings
 from app.domain.entities import User, UserRole
+from app.helpers.chat_auth import service_token_matches
+from app.helpers.jwt_tokens import decode_access_token
 from app.helpers.roles import role_at_least, role_in_allowed
 from app.kb.ingestion.wiring import build_ingestion_service
 from app.providers.llm.factory import get_llm_provider
@@ -147,6 +149,44 @@ def get_support_admin_service():
     ensure_schema()
     sessions = get_session_factory()
     return SupportAdminService(PostgresTicketRepository(sessions), PostgresChatTraceRepository(sessions))
+
+
+def _resolve_auth_service(request: Request) -> AuthService:
+    override = request.app.dependency_overrides.get(get_auth_service)
+    if override is not None:
+        return override()
+    return get_auth_service()
+
+
+def require_chat_access(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+) -> None:
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    token = credentials.credentials
+    if service_token_matches(token, settings.chat_service_token):
+        return
+    try:
+        decode_access_token(token)
+    except jwt.PyJWTError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+    try:
+        _resolve_auth_service(request).get_user_from_token(token)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
 
 
 def get_current_user(

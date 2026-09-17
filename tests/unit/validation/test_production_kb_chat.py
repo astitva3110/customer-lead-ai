@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from app.dependencies import get_orchestrator
 from app.main import app
 from app.services.generation.models import INSUFFICIENT_INFORMATION_MESSAGE
+from tests.conftest import chat_service_headers
 from tests.unit.conversation.fakes import FakeKnowledge
 from tests.validation.harness import make_graph_stack
 
@@ -23,7 +24,7 @@ def _client(*, knowledge: FakeKnowledge | None = None):
 
 def test_general_greeting_does_not_require_kb() -> None:
     with _client(knowledge=FakeKnowledge(chunks=[])) as (client, _):
-        response = client.post("/chat", json={"message": "Hi"})
+        response = client.post("/chat", json={"message": "Hi"}, headers=chat_service_headers())
         assert response.status_code == 200
         payload = response.json()
         assert payload["response"]
@@ -32,7 +33,7 @@ def test_general_greeting_does_not_require_kb() -> None:
 
 def test_knowledge_question_with_empty_kb_returns_gracefully() -> None:
     with _client(knowledge=FakeKnowledge(chunks=[])) as (client, _):
-        response = client.post("/chat", json={"message": "What is TINY?"})
+        response = client.post("/chat", json={"message": "What is TINY?"}, headers=chat_service_headers())
         assert response.status_code == 200
         payload = response.json()
         assert payload["response"] == INSUFFICIENT_INFORMATION_MESSAGE

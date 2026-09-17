@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.dependencies import get_orchestrator
+from tests.conftest import chat_service_headers
 from tests.unit.conversation.fakes import make_orchestrator
 
 
@@ -10,7 +11,11 @@ def test_chat_api_returns_mode_and_conversation_id() -> None:
     app.dependency_overrides[get_orchestrator] = lambda: orchestrator
     try:
         client = TestClient(app)
-        response = client.post("/chat", json={"message": "What is Radius M16?"})
+        response = client.post(
+            "/chat",
+            json={"message": "What is Radius M16?"},
+            headers=chat_service_headers(),
+        )
         assert response.status_code == 200
         payload = response.json()
         assert payload["mode"] == "KNOWLEDGE"
@@ -24,8 +29,6 @@ def test_chat_api_returns_mode_and_conversation_id() -> None:
         app.dependency_overrides.clear()
 
 
-def test_chat_page_is_public() -> None:
+def test_chat_html_page_is_not_served() -> None:
     client = TestClient(app)
-    response = client.get("/chat")
-    assert response.status_code == 200
-    assert "earKART Chat" in response.text
+    assert client.get("/chat").status_code == 405
