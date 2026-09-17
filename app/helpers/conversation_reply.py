@@ -4,6 +4,7 @@ import re
 
 from app.services.conversation.models import ChatMode, ConversationGoal, ConversationState, TurnIntent
 from app.helpers.conversation_turn import is_greeting_only, is_short_no, is_short_yes, last_assistant_text, recent_assistant_texts
+from app.helpers.user_language import format_name_suffix, localized_text
 
 _QUESTIONNAIRE_CLOSERS = (
     "what would you like to know",
@@ -104,15 +105,11 @@ def support_ticket_offer_reply(state: ConversationState) -> str:
     )
 
 
-def lead_created_reply(name: str = "") -> str:
-    if name:
-        return (
-            f"Thanks, {name}! Your details have been shared with our team. "
-            "They'll get in touch with you shortly."
-        )
-    return (
-        "Thanks! Your details have been shared with our team. "
-        "They'll get in touch with you shortly."
+def lead_created_reply(name: str = "", *, language: str = "en") -> str:
+    return localized_text(
+        "lead_created",
+        language,
+        name=format_name_suffix(name),
     )
 
 

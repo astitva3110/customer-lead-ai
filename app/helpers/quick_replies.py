@@ -248,14 +248,19 @@ def apply_declined_choice(state: ConversationState) -> None:
         state.conversation_goal = ConversationGoal.KNOWLEDGE
 
 
+_LEAD_TEAM_OFFER_RE = re.compile(
+    r"(?:"
+    r"connect(?:\s+you)?\s+with\s+(?:our\s+)?team"
+    r"|our team can contact"
+    r"|connect you with our sales team"
+    r"|sales team can contact"
+    r")",
+    re.IGNORECASE,
+)
+
+
 def offered_lead_choice(assistant_text: str) -> bool:
-    return bool(
-        re.search(
-            r"connect you with our team|our team can contact|connect you with our sales team|sales team can contact",
-            assistant_text or "",
-            flags=re.IGNORECASE,
-        )
-    )
+    return bool(_LEAD_TEAM_OFFER_RE.search(assistant_text or ""))
 
 
 def offered_ticket_choice(assistant_text: str) -> bool:

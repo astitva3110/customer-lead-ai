@@ -148,6 +148,38 @@ def test_trial_request_starts_lead_collection() -> None:
     assert lead_tool.leads == []
 
 
+def test_offered_lead_choice_detects_connect_with_our_team_wording() -> None:
+    from app.helpers.quick_replies import offered_lead_choice
+
+    text = (
+        "Nice to meet you, Astitva! I'm glad you're interested in buying a hearing aid. "
+        "Would you like to connect with our team to discuss further?"
+    )
+    assert offered_lead_choice(text)
+
+
+def test_attach_lead_offer_after_sales_pitch_avoids_llm_team_offer_wording() -> None:
+    from app.helpers.quick_replies import (
+        PENDING_LEAD_OFFER,
+        attach_lead_offer_after_sales_pitch,
+        quick_replies_from_trace,
+    )
+
+    state = ConversationState(
+        response=(
+            "Nice to meet you, Astitva! I'm glad you're interested in buying a hearing aid. "
+            "Would you like to connect with our team to discuss further?"
+        ),
+        product="",
+        trace={"sales_pitch_from_rag": True, "next_action": "SALES_PITCH_AND_OFFER_CONTACT"},
+    )
+    attach_lead_offer_after_sales_pitch(state)
+    assert state.response.count("connect") == 1
+    assert "Great choice" not in state.response
+    assert quick_replies_from_trace(state)
+    assert state.trace.get("pending_choice") == PENDING_LEAD_OFFER
+
+
 def test_attach_lead_offer_after_sales_pitch_avoids_duplicate_paragraph() -> None:
     from app.helpers.quick_replies import (
         PENDING_LEAD_OFFER,
