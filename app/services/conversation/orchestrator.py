@@ -67,7 +67,13 @@ class ConversationOrchestrator:
         state.guardrail_rejected = False
         state.query_rewritten = ""
         before = snapshot_state(state)
-        state.trace = {"state_before": before}
+        previous_trace = dict(state.trace or {})
+        carried_trace = {
+            key: previous_trace[key]
+            for key in ("lead_id", "lead_persisted", "crm_synced")
+            if previous_trace.get(key) is not None
+        }
+        state.trace = {"state_before": before, **carried_trace}
         from app.helpers.user_language import touch_response_language
 
         touch_response_language(state)

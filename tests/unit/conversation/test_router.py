@@ -103,6 +103,24 @@ def test_know_more_details_during_phone_collection_retrieves() -> None:
     assert routed.user_name == "Astitva"
 
 
+def test_city_with_pincode_during_lead_collection_routes_to_lead_not_reply() -> None:
+    state = ConversationState(
+        user_message="Gurugram-122006",
+        mode=ChatMode.LEAD,
+        conversation_goal=ConversationGoal.SALES,
+        lead_collection_active=True,
+        awaiting_field="city",
+        user_name="MC Sharma",
+        phone="+919310707781",
+        explicit_action="create_lead",
+    )
+    routed = ChatRouter().route(state)
+    assert routed.current_turn_intent == "PROVIDE_INFORMATION"
+    assert routed.trace.get("should_retrieve") is False
+    assert routed.trace.get("needs_natural_reply") is not True
+    assert routed.mode == ChatMode.LEAD
+
+
 def test_how_are_you_greeting_does_not_retrieve() -> None:
     routed = ChatRouter().route(ConversationState(user_message="Hi, how are you?"))
     assert routed.trace.get("should_retrieve") is False

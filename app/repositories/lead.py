@@ -18,6 +18,21 @@ class PostgresLeadRepository:
             session.commit()
         return lead.lead_id
 
+    def update_lead(self, lead: Lead) -> Lead | None:
+        with self._session_factory() as session:
+            row = session.get(LeadRow, lead.lead_id)
+            if row is None:
+                return None
+            row.name = lead.name
+            row.phone = lead.phone
+            row.city = lead.city
+            row.country = lead.country
+            row.product = lead.product
+            row.updated_at = _utcnow()
+            session.commit()
+            session.refresh(row)
+            return row.to_entity()
+
     def list_leads(
         self,
         *,

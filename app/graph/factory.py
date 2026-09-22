@@ -8,6 +8,7 @@ from app.services.conversation.router import ChatRouter
 from app.services.conversation.support_service import SupportService
 from app.services.generation.generation_service import GenerationService
 from app.interfaces.providers.business import LeadTool, TicketTool
+from app.interfaces.providers.crm import CrmLeadPort
 from app.interfaces.providers.knowledge import KnowledgeService
 from app.interfaces.repositories.chat_trace_repository import ChatTraceRepository
 from app.interfaces.repositories.conversation_repository import ConversationRepository
@@ -23,6 +24,7 @@ def build_conversation_orchestrator(
     store: ConversationRepository,
     model_used: str = "",
     traces: ChatTraceRepository | None = None,
+    crm: CrmLeadPort | None = None,
 ) -> ConversationOrchestrator:
     graph = build_chat_graph(
         router=ChatRouter(llm=generation.llm),
@@ -31,8 +33,8 @@ def build_conversation_orchestrator(
             generation,
             model_used=model_used or settings.generation_model,
         ),
-        lead=LeadService(lead_tool),
-        support=SupportService(ticket_tool),
+        lead=LeadService(lead_tool, crm=crm),
+        support=SupportService(ticket_tool, crm=crm),
         generation=generation,
     )
     return ConversationOrchestrator(graph, store, traces)

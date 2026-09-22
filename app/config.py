@@ -42,6 +42,9 @@ class RuntimeSettings(BaseSettings):
     # Chat / lead
     default_country: str = ""
     conversation_session_timeout_minutes: int = 15
+    crm_lead_enabled: bool = False
+    crm_lead_url: str = ""
+    crm_lead_timeout_seconds: float = 15.0
     # Shared with chatbot-frontend WIDGET_BACKEND_TOKEN for the widget proxy.
     chat_service_token: str = ""
 

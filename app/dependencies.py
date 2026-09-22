@@ -58,6 +58,7 @@ def get_orchestrator() -> ConversationOrchestrator:
     from app.kb.retrieval.service import RetrievalService
     from app.providers.knowledge.hybrid_knowledge_service import HybridKnowledgeService
     from app.providers.retrieval.factory import build_knowledge_hybrid_retriever
+    from app.providers.crm import EarkartCrmClient
     from app.repositories.conversation import InMemoryConversationRepository
     from app.repositories.lead import PostgresLeadRepository
     from app.repositories.ticket import PostgresTicketRepository
@@ -82,6 +83,13 @@ def get_orchestrator() -> ConversationOrchestrator:
     except Exception:
         logger.exception("postgres business tables initialization failed")
         raise
+    crm = None
+    if settings.crm_lead_enabled:
+        client = EarkartCrmClient()
+        if client.is_configured:
+            crm = client
+        else:
+            logger.warning("CRM lead sync enabled but CRM_LEAD_URL is not configured")
     return build_conversation_orchestrator(
         knowledge=knowledge,
         generation=GenerationService(
@@ -95,6 +103,7 @@ def get_orchestrator() -> ConversationOrchestrator:
         store=InMemoryConversationRepository(),
         model_used=settings.generation_model,
         traces=traces,
+        crm=crm,
     )
 
 

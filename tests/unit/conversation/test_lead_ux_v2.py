@@ -63,7 +63,9 @@ def test_05_valid_phone_advances_to_city() -> None:
     assert result.phone_country == "IN"
     assert result.awaiting_field == "city"
     assert result.response == "Thanks! Which city should I note for the team?"
-    assert lead_tool.leads == []
+    assert len(lead_tool.leads) == 1
+    assert lead_tool.leads[0].city == ""
+    assert result.trace["lead_persisted"] is True
 
 
 def test_06_phone_with_country_code_normalizes() -> None:

@@ -11,6 +11,13 @@ from app.helpers.conversation_extract import (
     normalize_person_name,
 )
 from app.helpers.conversation_reply import lead_created_reply
+from app.helpers.crm_lead import (
+    crm_city_value,
+    crm_names_from_lead,
+    crm_phone_digits,
+    crm_problem_from_lead,
+    crm_source_for_state,
+)
 from app.helpers.user_language import localized_text, response_language
 from app.helpers.conversation_turn import is_acknowledgement_only
 from app.helpers.phone import (
@@ -21,6 +28,7 @@ from app.helpers.phone import (
     phone_validation_reply,
 )
 from app.interfaces.providers.business import LeadTool
+from app.interfaces.providers.crm import CrmLeadPort
 from app.services.conversation.models import ConversationState, LeadStage, LeadStatus, LeadWorkflow
 from app.services.conversation.query_rewriter import apply_named_product, extract_product
 
@@ -103,17 +111,19 @@ def _knowledge_lead_continuation(field: str, *, product: str = "", language: str
 
 
 class LeadService:
-    def __init__(self, tool: LeadTool) -> None:
+    def __init__(self, tool: LeadTool, crm: CrmLeadPort | None = None) -> None:
         self._tool = tool
+        self._crm = crm
 
     def handle(self, state: ConversationState) -> ConversationState:
         if state.lead_status == LeadStatus.CREATED:
             return _release_completed_lead(state)
         apply_named_product(state)
         self._ingest_fields(state)
+        self._maybe_persist_lead(state)
         if _is_phone_retry(state):
             return self._retry_phone(state)
-        missing = self._next_missing(state)
+        missing = self._next_prompt_field(state)
         self._sync_workflow(state, missing)
         _log_lead_completion(state, missing)
         if missing:
@@ -121,24 +131,10 @@ class LeadService:
             state.awaiting_field = missing
             state.response = prompt_for_missing_lead_field(state, missing)
             return state
-        try:
-            lead_id = self._tool.create_lead(_lead_from_state(state))
-        except Exception:
-            state.lead_status = LeadStatus.FAILED
-            state.error = "lead_create_failed"
-            state.response = "I could not create the lead right now. Please try again shortly."
-            return state
-        state.lead_status = LeadStatus.CREATED
-        state.lead_workflow = LeadWorkflow.CREATED
-        state.lead_stage = LeadStage.COMPLETED
-        state.lead_collection_active = False
-        state.awaiting_field = ""
-        state.explicit_action = ""
-        state.response = lead_created_reply(
-            state.user_name,
-            language=response_language(state),
-        )
-        _mark_lead_created(state, lead_id)
+        if self._is_collection_complete(state):
+            return self._complete_lead(state)
+        state.lead_status = LeadStatus.COLLECTING
+        state.response = ""
         return state
 
     def converse(self, state: ConversationState) -> ConversationState:
@@ -167,8 +163,8 @@ class LeadService:
             state.trace["ask_missing"] = True
             _add_capability(state, "LEAD_INFORMATION_COLLECTION")
             return state
-        if collect and not missing:
-            return self._create(state)
+        if collect and not missing and self._is_collection_complete(state):
+            return self._complete_lead(state)
         state.lead_status = LeadStatus.COLLECTING
         if missing:
             state.lead_workflow = LeadWorkflow.DISCUSSING_PRODUCT
@@ -180,14 +176,63 @@ class LeadService:
     def _prepare(self, state: ConversationState) -> str:
         apply_named_product(state)
         self._ingest_fields(state)
-        missing = self._next_missing(state)
+        self._maybe_persist_lead(state)
+        missing = self._next_prompt_field(state)
         self._sync_workflow(state, missing)
         return missing
 
-    def _create(self, state: ConversationState) -> ConversationState:
-        started = time.perf_counter()
+    def _maybe_persist_lead(self, state: ConversationState) -> None:
+        if not state.phone:
+            return
+        trace = dict(state.trace or {})
+        if trace.get("lead_id"):
+            return
+        lead = _lead_from_state(state)
+        lead.city = ""
         try:
-            lead_id = self._tool.create_lead(_lead_from_state(state))
+            lead_id = self._tool.create_lead(lead)
+        except Exception:
+            logger.exception("lead persist failed")
+            return
+        trace["lead_id"] = lead_id
+        trace["lead_persisted"] = True
+        crm_synced = False
+        if self._crm is not None:
+            try:
+                self._crm.create_lead(
+                    names=crm_names_from_lead(lead),
+                    phone=crm_phone_digits(lead.phone),
+                    source=crm_source_for_state(state),
+                    problem=crm_problem_from_lead(lead),
+                    city=crm_city_value(state.city),
+                )
+                crm_synced = True
+            except Exception:
+                logger.exception("crm lead sync failed")
+        trace["crm_synced"] = crm_synced
+        state.trace = trace
+        logger.info(
+            "PERSIST_LEAD %s",
+            {"lead_id": lead_id, "crm_synced": crm_synced, "city": state.city or None},
+        )
+
+    def _complete_lead(self, state: ConversationState) -> ConversationState:
+        started = time.perf_counter()
+        trace = dict(state.trace or {})
+        lead = _lead_from_state(state)
+        existing_id = trace.get("lead_id")
+        tool_action = "create_lead"
+        try:
+            if existing_id:
+                lead.lead_id = str(existing_id)
+                updated = self._tool.update_lead(lead)
+                if updated is None:
+                    lead_id = self._tool.create_lead(lead)
+                else:
+                    lead_id = updated.lead_id
+                    tool_action = "update_lead"
+            else:
+                lead_id = self._tool.create_lead(lead)
         except Exception:
             state.lead_status = LeadStatus.FAILED
             state.error = "lead_create_failed"
@@ -204,9 +249,12 @@ class LeadService:
             state.user_name,
             language=response_language(state),
         )
-        _mark_lead_created(state, lead_id)
+        _mark_lead_created(state, lead_id, tool_action=tool_action)
         _record_tool_ms(state, started)
         return state
+
+    def _is_collection_complete(self, state: ConversationState) -> bool:
+        return bool(state.user_name and state.phone and state.city)
 
     def _should_collect(self, state: ConversationState, missing: str) -> bool:
         if state.explicit_action == "create_lead":
@@ -221,7 +269,7 @@ class LeadService:
 
     def _ingest_fields(self, state: ConversationState) -> None:
         message = (state.user_message or "").strip()
-        previous_field = state.awaiting_field or self._next_missing(state)
+        previous_field = state.awaiting_field or self._next_prompt_field(state)
         awaiting_phone = previous_field in {"phone", "phone_country"} and not state.phone
         parsed_phone = self._ingest_phone(state, message, previous_field, awaiting_phone)
         if _is_phone_retry(state):
@@ -286,7 +334,7 @@ class LeadService:
         _add_capability(state, "LEAD_INFORMATION_COLLECTION")
         return state
 
-    def _next_missing(self, state: ConversationState) -> str:
+    def _next_prompt_field(self, state: ConversationState) -> str:
         if state.awaiting_field == "phone_country" and not state.phone:
             return "phone_country"
         if state.awaiting_field == "phone" and not state.phone:
@@ -348,7 +396,7 @@ def _log_lead_completion(state: ConversationState, missing: str) -> None:
         "missing_fields": missing_fields,
         "next_missing_field": missing or None,
         "awaiting_field": state.awaiting_field or None,
-        "will_create_lead": not missing,
+        "will_complete_lead": not missing and bool(state.user_name and state.phone and state.city),
     }
     logger.info("LEAD_MISSING %s", payload)
     state.trace = dict(state.trace or {})
@@ -411,12 +459,21 @@ def _lead_from_state(state: ConversationState) -> Lead:
     )
 
 
-def _mark_lead_created(state: ConversationState, lead_id: str) -> None:
+def _mark_lead_created(
+    state: ConversationState,
+    lead_id: str,
+    *,
+    tool_action: str = "create_lead",
+) -> None:
     state.trace = dict(state.trace or {})
-    state.trace["tool_called"] = "create_lead"
+    state.trace["tool_called"] = tool_action
     state.trace["should_create_lead"] = True
     state.trace["lead_id"] = lead_id
-    logger.info("CREATE_LEAD %s", {"called": True, "lead_id": lead_id, "city": state.city})
+    logger.info(
+        "%s %s",
+        tool_action.upper(),
+        {"called": True, "lead_id": lead_id, "city": state.city},
+    )
 
 
 def _add_capability(state: ConversationState, capability: str) -> None:

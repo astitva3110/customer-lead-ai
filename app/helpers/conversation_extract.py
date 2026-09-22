@@ -403,6 +403,24 @@ _COLLECTION_DIVERGE_RE = re.compile(
 )
 _BARE_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z.'-]{1,29}(?:\s+[A-Za-z][A-Za-z.'-]{1,29}){0,2}$")
 _BARE_PLACE_RE = re.compile(r"^[A-Za-z][A-Za-z .'-]{1,40}$")
+_CITY_PINCODE_RE = re.compile(
+    r"^[A-Za-z][A-Za-z .'-]{1,40}[\s,-]+\d{5,6}$",
+    re.IGNORECASE,
+)
+
+
+def looks_like_city_value(message: str) -> bool:
+    """City answer during lead collection — plain name or name with pincode."""
+    text = (message or "").strip()
+    if not text:
+        return False
+    if extract_city(text):
+        return True
+    if extract_product(text):
+        return False
+    if _BARE_PLACE_RE.match(text):
+        return True
+    return bool(_CITY_PINCODE_RE.match(text))
 
 
 def looks_like_requested_field_reply(state, message: str) -> bool:
@@ -421,7 +439,7 @@ def looks_like_requested_field_reply(state, message: str) -> bool:
     if field == "name":
         return bool(extract_name(text)) or bool(_BARE_NAME_RE.match(text) and not extract_product(text))
     if field == "city":
-        return bool(extract_city(text)) or bool(_BARE_PLACE_RE.match(text) and not extract_product(text))
+        return looks_like_city_value(text)
     if field == "product":
         return bool(extract_product(text))
     if field == "issue":

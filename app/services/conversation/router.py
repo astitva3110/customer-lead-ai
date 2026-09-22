@@ -234,6 +234,13 @@ class ChatRouter:
             return "disabled"
         if not self._llm or not getattr(self._llm, "is_configured", False):
             return "llm_unconfigured"
+        if state.awaiting_field and (
+            state.lead_collection_active
+            or state.support_collection_active
+            or state.explicit_action in {"create_lead", "create_ticket"}
+        ):
+            if looks_like_requested_field_reply(state, state.user_message or ""):
+                return "field_collection"
         if state.awaiting_field and understanding.turn_intent in {
             TurnIntent.PROVIDE_INFORMATION,
             TurnIntent.CONFIRMATION,
@@ -613,6 +620,19 @@ class ChatRouter:
                 )
         routed = routing_query(state)
         message = strip_greeting_prefix(routed)
+        if state.awaiting_field and (
+            state.lead_collection_active
+            or state.explicit_action == "create_lead"
+            or state.mode == ChatMode.LEAD
+        ):
+            if looks_like_requested_field_reply(state, raw_message):
+                return TurnUnderstanding(
+                    turn_intent=TurnIntent.PROVIDE_INFORMATION,
+                    needs_rag=False,
+                    lead_intent=True,
+                    explicit_action=state.explicit_action or "create_lead",
+                    confidence=0.98,
+                )
         last_assistant = last_assistant_text(state)
         if looks_like_ticket_request(raw_message) or looks_like_ticket_request(message):
             return TurnUnderstanding(

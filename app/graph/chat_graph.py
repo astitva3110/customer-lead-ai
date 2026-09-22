@@ -160,13 +160,23 @@ def build_chat_graph(
         trace = payload.get("trace") or {}
         if trace.get("should_retrieve"):
             return "knowledge"
-        if trace.get("needs_natural_reply"):
-            return "reply"
         mode = payload.get("mode")
         if mode == ChatMode.LEAD:
+            if (
+                payload.get("lead_collection_active")
+                or payload.get("awaiting_field")
+                or trace.get("should_create_lead")
+            ):
+                return "lead"
             if payload.get("lead_status") == "CREATED" and not trace.get("should_create_lead"):
-                return "reply"
+                return "reply" if trace.get("needs_natural_reply") else "lead"
             return "lead"
+        if mode == ChatMode.SUPPORT and (
+            payload.get("support_collection_active") or payload.get("awaiting_field")
+        ):
+            return "support"
+        if trace.get("needs_natural_reply"):
+            return "reply"
         if mode == ChatMode.SUPPORT:
             return "support"
         return "reply"

@@ -21,7 +21,15 @@ from app.helpers.phone import (
     looks_like_phone_attempt,
     phone_validation_reply,
 )
+from app.helpers.crm_lead import (
+    crm_city_value,
+    crm_names_from_ticket,
+    crm_phone_digits,
+    crm_problem_from_ticket,
+    crm_source_for_state,
+)
 from app.interfaces.providers.business import TicketTool
+from app.interfaces.providers.crm import CrmLeadPort
 from app.helpers.conversation_reply import support_ticket_offer_reply
 from app.helpers.quick_replies import set_ticket_choice_offer
 from app.services.conversation.models import ConversationState, SupportWorkflow, TicketStatus, TurnIntent
@@ -57,8 +65,9 @@ def prompt_for_missing_support_field(state: ConversationState, field: str) -> st
 
 
 class SupportService:
-    def __init__(self, tool: TicketTool) -> None:
+    def __init__(self, tool: TicketTool, crm: CrmLeadPort | None = None) -> None:
         self._tool = tool
+        self._crm = crm
 
     def handle(self, state: ConversationState) -> ConversationState:
         if state.ticket_status == TicketStatus.CREATED:
@@ -91,6 +100,7 @@ class SupportService:
         state.awaiting_field = ""
         state.response = ticket_created_reply(state.user_name)
         _mark_ticket_created(state, ticket_id)
+        self._sync_crm(state, _ticket_from_state(state))
         return state
 
     def converse(self, state: ConversationState) -> ConversationState:
@@ -163,8 +173,36 @@ class SupportService:
         state.awaiting_field = ""
         state.response = ticket_created_reply(state.user_name)
         _mark_ticket_created(state, ticket_id)
+        self._sync_crm(state, _ticket_from_state(state))
         _record_tool_ms(state, started)
         return state
+
+    def _sync_crm(self, state: ConversationState, ticket: SupportTicket) -> None:
+        if self._crm is None or not ticket.phone:
+            return
+        trace = dict(state.trace or {})
+        crm_synced = False
+        try:
+            self._crm.create_lead(
+                names=crm_names_from_ticket(ticket),
+                phone=crm_phone_digits(ticket.phone),
+                source=crm_source_for_state(state),
+                problem=crm_problem_from_ticket(ticket),
+                city=crm_city_value(state.city),
+            )
+            crm_synced = True
+        except Exception:
+            logger.exception("crm support ticket sync failed")
+        trace["crm_synced"] = crm_synced
+        state.trace = trace
+        logger.info(
+            "CRM_SUPPORT_SYNC %s",
+            {
+                "ticket_id": trace.get("ticket_id"),
+                "crm_synced": crm_synced,
+                "source": crm_source_for_state(state),
+            },
+        )
 
     def _should_collect(self, state: ConversationState, missing: str) -> bool:
         if state.explicit_action == "create_ticket":
