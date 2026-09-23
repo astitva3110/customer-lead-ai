@@ -12,11 +12,9 @@ from app.helpers.conversation_extract import (
 )
 from app.helpers.conversation_reply import lead_created_reply
 from app.helpers.crm_lead import (
-    crm_city_value,
     crm_names_from_lead,
-    crm_phone_digits,
     crm_problem_from_lead,
-    crm_source_for_state,
+    sync_to_crm,
 )
 from app.helpers.user_language import localized_text, response_language
 from app.helpers.conversation_turn import is_acknowledgement_only
@@ -186,6 +184,10 @@ class LeadService:
             return
         trace = dict(state.trace or {})
         if trace.get("lead_id"):
+            if trace.get("crm_synced"):
+                return
+            lead = _lead_from_state(state)
+            self._sync_lead_crm(state, lead)
             return
         lead = _lead_from_state(state)
         lead.city = ""
@@ -196,25 +198,39 @@ class LeadService:
             return
         trace["lead_id"] = lead_id
         trace["lead_persisted"] = True
-        crm_synced = False
-        if self._crm is not None:
-            try:
-                self._crm.create_lead(
-                    names=crm_names_from_lead(lead),
-                    phone=crm_phone_digits(lead.phone),
-                    source=crm_source_for_state(state),
-                    problem=crm_problem_from_lead(lead),
-                    city=crm_city_value(state.city),
-                )
-                crm_synced = True
-            except Exception:
-                logger.exception("crm lead sync failed")
-        trace["crm_synced"] = crm_synced
         state.trace = trace
+        crm_synced = self._sync_lead_crm(state, lead)
         logger.info(
             "PERSIST_LEAD %s",
             {"lead_id": lead_id, "crm_synced": crm_synced, "city": state.city or None},
         )
+
+    def _sync_lead_crm(self, state: ConversationState, lead: Lead) -> bool:
+        if not lead.phone:
+            return False
+        trace = dict(state.trace or {})
+        if trace.get("crm_synced"):
+            return True
+        synced = sync_to_crm(
+            self._crm,
+            state=state,
+            names=crm_names_from_lead(lead),
+            phone=lead.phone,
+            problem=crm_problem_from_lead(lead),
+            city=lead.city or state.city,
+        )
+        trace["crm_synced"] = synced
+        state.trace = trace
+        if synced:
+            logger.info(
+                "CRM_LEAD_SYNC %s",
+                {
+                    "lead_id": trace.get("lead_id"),
+                    "city": lead.city or state.city or None,
+                    "source": (state.channel or "web"),
+                },
+            )
+        return synced
 
     def _complete_lead(self, state: ConversationState) -> ConversationState:
         started = time.perf_counter()
@@ -250,6 +266,8 @@ class LeadService:
             language=response_language(state),
         )
         _mark_lead_created(state, lead_id, tool_action=tool_action)
+        if not (state.trace or {}).get("crm_synced"):
+            self._sync_lead_crm(state, lead)
         _record_tool_ms(state, started)
         return state
 

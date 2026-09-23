@@ -22,11 +22,10 @@ from app.helpers.phone import (
     phone_validation_reply,
 )
 from app.helpers.crm_lead import (
-    crm_city_value,
     crm_names_from_ticket,
-    crm_phone_digits,
     crm_problem_from_ticket,
     crm_source_for_state,
+    sync_to_crm,
 )
 from app.interfaces.providers.business import TicketTool
 from app.interfaces.providers.crm import CrmLeadPort
@@ -178,21 +177,19 @@ class SupportService:
         return state
 
     def _sync_crm(self, state: ConversationState, ticket: SupportTicket) -> None:
-        if self._crm is None or not ticket.phone:
+        if not ticket.phone:
             return
         trace = dict(state.trace or {})
-        crm_synced = False
-        try:
-            self._crm.create_lead(
-                names=crm_names_from_ticket(ticket),
-                phone=crm_phone_digits(ticket.phone),
-                source=crm_source_for_state(state),
-                problem=crm_problem_from_ticket(ticket),
-                city=crm_city_value(state.city),
-            )
-            crm_synced = True
-        except Exception:
-            logger.exception("crm support ticket sync failed")
+        if trace.get("crm_synced"):
+            return
+        crm_synced = sync_to_crm(
+            self._crm,
+            state=state,
+            names=crm_names_from_ticket(ticket),
+            phone=ticket.phone,
+            problem=crm_problem_from_ticket(ticket),
+            city=state.city,
+        )
         trace["crm_synced"] = crm_synced
         state.trace = trace
         logger.info(

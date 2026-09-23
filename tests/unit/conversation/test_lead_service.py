@@ -291,6 +291,64 @@ def test_whatsapp_prefilled_phone_persists_after_name() -> None:
     assert crm.calls[0]["source"] == "whatsapp"
 
 
+def test_crm_retries_after_phone_persist_failure_when_city_provided() -> None:
+    adapter = InMemoryLeadAdapter()
+    crm = FakeCrm(fail=True)
+    service = LeadService(adapter, crm=crm)
+    phone_state = ConversationState(
+        user_message="+91 9876543210",
+        user_name="Ada",
+        awaiting_field="phone",
+        lead_collection_active=True,
+        lead_status=LeadStatus.COLLECTING,
+        conversation_id="crm-retry",
+    )
+    phone_state = service.handle(phone_state)
+    assert phone_state.trace["crm_synced"] is False
+    crm.fail = False
+    city_state = ConversationState(
+        user_message="Noida",
+        phone=phone_state.phone,
+        country="IN",
+        user_name="Ada",
+        awaiting_field="city",
+        lead_collection_active=True,
+        lead_status=LeadStatus.COLLECTING,
+        conversation_id="crm-retry",
+        trace=dict(phone_state.trace),
+    )
+    city_state = service.handle(city_state)
+    assert city_state.lead_status == LeadStatus.CREATED
+    assert city_state.trace["crm_synced"] is True
+    assert len(crm.calls) == 1
+    assert crm.calls[0]["city"] == "Noida"
+
+
+def test_whatsapp_lead_yes_with_prefilled_identity_syncs_crm() -> None:
+    adapter = InMemoryLeadAdapter()
+    crm = FakeCrm()
+    state = ConversationState(
+        user_message="lead_yes",
+        channel="whatsapp",
+        phone="+919876543210",
+        country="IN",
+        user_name="SARTAJ BHINDER",
+        explicit_action="create_lead",
+        lead_collection_active=True,
+        lead_status=LeadStatus.COLLECTING,
+        conversation_id="wa-lead-yes",
+    )
+    state = LeadService(adapter, crm=crm).converse(state)
+    assert state.awaiting_field == "city"
+    assert state.trace["lead_id"]
+    assert state.trace["crm_synced"] is True
+    assert crm.calls
+    assert crm.calls[0]["names"] == "SARTAJ BHINDER"
+    assert crm.calls[0]["phone"] == "9876543210"
+    assert crm.calls[0]["source"] == "whatsapp"
+    assert crm.calls[0]["city"] == CRM_CITY_PLACEHOLDER
+
+
 def test_crm_failure_still_persists_locally_and_asks_city() -> None:
     adapter = InMemoryLeadAdapter()
     crm = FakeCrm(fail=True)
