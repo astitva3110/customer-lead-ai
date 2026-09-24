@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.config import settings
+from app.providers.llm.factory import get_semantic_router_provider
 from app.services.conversation.knowledge_flow import KnowledgeFlow
 from app.services.conversation.lead_service import LeadService
 from app.services.conversation.orchestrator import ConversationOrchestrator
@@ -27,7 +28,7 @@ def build_conversation_orchestrator(
     crm: CrmLeadPort | None = None,
 ) -> ConversationOrchestrator:
     graph = build_chat_graph(
-        router=ChatRouter(llm=generation.llm),
+        router=ChatRouter(router_llm=get_semantic_router_provider(settings)),
         knowledge=KnowledgeFlow(
             knowledge,
             generation,

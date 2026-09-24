@@ -1,17 +1,28 @@
+from __future__ import annotations
+
+from typing import Literal
+
 from app.config import Settings
 from app.services.diagnostics.langsmith_tracing import add_token_usage, usage_payload
 from app.services.diagnostics.recorder import current_trace
+
+LLMProfile = Literal["generation", "semantic_router"]
 
 
 class LiteLLMProvider:
     """Single LLM adapter. Provider, model, and transport come from Settings."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, *, profile: LLMProfile = "generation") -> None:
         self._settings = settings
+        self._profile = profile
+
+    @property
+    def profile(self) -> LLMProfile:
+        return self._profile
 
     @property
     def is_configured(self) -> bool:
-        return bool(self._settings.generation_model.strip())
+        return bool(self._resolved_model().strip())
 
     def complete(
         self,
@@ -41,12 +52,12 @@ class LiteLLMProvider:
         tags: list[str] | None = None,
     ) -> tuple[str, dict]:
         if not self.is_configured:
-            raise RuntimeError("generation model is not configured")
+            raise RuntimeError(f"{self._profile} model is not configured")
         import litellm
 
         litellm.drop_params = True
         kwargs: dict = {
-            "model": self._settings.generation_model,
+            "model": self._resolved_model(),
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
@@ -57,20 +68,20 @@ class LiteLLMProvider:
             "timeout": self._settings.generation_timeout_seconds,
             "num_retries": self._settings.generation_num_retries,
         }
-        tokens = self._settings.generation_max_tokens if max_tokens is None else max_tokens
+        tokens = self._resolved_max_tokens(max_tokens)
         if tokens is not None:
             kwargs["max_tokens"] = tokens
-        api_base = (self._settings.generation_api_base or "").strip()
+        api_base = self._resolved_api_base()
         if api_base:
             kwargs["api_base"] = api_base
-        api_key = (self._settings.generation_api_key or self._settings.openai_api_key or "").strip()
+        api_key = self._resolved_api_key()
         if api_key:
             kwargs["api_key"] = api_key
         elif api_base:
             kwargs["api_key"] = "dummy"
-        if self._settings.generation_json_mode:
+        if self._resolved_json_mode():
             kwargs["response_format"] = {"type": "json_object"}
-        extra_raw = (self._settings.generation_extra_body or "").strip()
+        extra_raw = self._resolved_extra_body()
         if extra_raw:
             import json
 
@@ -88,6 +99,43 @@ class LiteLLMProvider:
             add_token_usage(trace, usage)
         content = response.choices[0].message.content
         return content or "", usage
+
+    def _resolved_model(self) -> str:
+        if self._profile == "semantic_router":
+            return (self._settings.semantic_router_model or self._settings.generation_model or "").strip()
+        return (self._settings.generation_model or "").strip()
+
+    def _resolved_api_base(self) -> str:
+        if self._profile == "semantic_router":
+            return (self._settings.semantic_router_api_base or self._settings.generation_api_base or "").strip()
+        return (self._settings.generation_api_base or "").strip()
+
+    def _resolved_api_key(self) -> str:
+        if self._profile == "semantic_router":
+            return (
+                self._settings.semantic_router_api_key
+                or self._settings.generation_api_key
+                or self._settings.openai_api_key
+                or ""
+            ).strip()
+        return (self._settings.generation_api_key or self._settings.openai_api_key or "").strip()
+
+    def _resolved_max_tokens(self, override: int | None) -> int | None:
+        if override is not None:
+            return override
+        if self._profile == "semantic_router":
+            return int(self._settings.semantic_router_max_tokens or 256)
+        return self._settings.generation_max_tokens
+
+    def _resolved_json_mode(self) -> bool:
+        if self._profile == "semantic_router":
+            return True
+        return bool(self._settings.generation_json_mode)
+
+    def _resolved_extra_body(self) -> str:
+        if self._profile == "semantic_router":
+            return (self._settings.semantic_router_extra_body or self._settings.generation_extra_body or "").strip()
+        return (self._settings.generation_extra_body or "").strip()
 
     def _record_generation_tokens(self, usage: dict) -> None:
         trace = current_trace()

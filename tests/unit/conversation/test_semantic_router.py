@@ -279,7 +279,7 @@ def test_semantic_prompt_is_compact_and_not_full_history() -> None:
     history = [{"role": "user", "content": f"turn {i} " + ("x" * 80)} for i in range(12)]
     history.append({"role": "assistant", "content": "ok " + ("y" * 80)})
     llm = ScriptedRouterLLM(_payload(route="GENERAL"))
-    _route("thanks", llm, conversation_history=history, product="TINY")
+    _route("What is the warranty of TINY?", llm, conversation_history=history, product="TINY")
     assert SEMANTIC_ROUTER_MARKER in llm.last_system
     assert "turn 0" not in llm.last_user
     assert "answer" not in llm.last_system.lower() or "Do not answer the user" in llm.last_system

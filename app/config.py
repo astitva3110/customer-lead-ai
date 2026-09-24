@@ -24,10 +24,14 @@ class RuntimeSettings(BaseSettings):
     generation_extra_body: str = ""
     openai_api_key: str = ""
 
-    # Semantic router (reuses generation_model / Qwen 1.7B via LiteLLM)
+    # Semantic router (optional separate model/API; falls back to generation settings)
     semantic_router_enabled: bool = True
+    semantic_router_model: str = ""
+    semantic_router_api_base: str = ""
+    semantic_router_api_key: str = ""
     semantic_router_confidence_threshold: float = 0.7
     semantic_router_max_tokens: int = 256
+    semantic_router_extra_body: str = ""
 
     # Database — set DATABASE_URL in .env (never commit credentials)
     database_url: str = ""

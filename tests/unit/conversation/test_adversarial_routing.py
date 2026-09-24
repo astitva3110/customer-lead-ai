@@ -220,9 +220,9 @@ def _live_llm_configured() -> bool:
 @pytest.mark.parametrize("case", ADVERSARIAL_ROUTING_CASES, ids=lambda item: item.id)
 def test_live_semantic_router_classifies_adversarial_cases(case: AdversarialRoutingCase) -> None:
     """Optional live check: real LLM must classify trap messages correctly."""
-    from app.providers.llm.factory import get_llm_provider
+    from app.providers.llm.factory import get_semantic_router_provider
 
-    llm = get_llm_provider(settings)
+    llm = get_semantic_router_provider(settings)
     state = ConversationState(user_message=case.message)
     raw = llm.complete(
         SEMANTIC_ROUTER_SYSTEM,

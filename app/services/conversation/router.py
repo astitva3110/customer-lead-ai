@@ -5,6 +5,7 @@ import re
 import time
 
 from app.config import settings
+from app.providers.llm.factory import semantic_router_model_label
 from app.services.conversation.models import (
     ChatMode,
     ConversationGoal,
@@ -232,8 +233,8 @@ def _choice_declined(state: ConversationState) -> bool:
 class ChatRouter:
     """Classifies the current turn. Does not lock the conversation into a form."""
 
-    def __init__(self, llm: LLMProvider | None = None) -> None:
-        self._llm = llm
+    def __init__(self, llm: LLMProvider | None = None, *, router_llm: LLMProvider | None = None) -> None:
+        self._llm = router_llm if router_llm is not None else llm
 
     def _semantic_skip_reason(self, state: ConversationState, understanding) -> str | None:
         if not bool(getattr(settings, "semantic_router_enabled", True)):
@@ -309,7 +310,7 @@ class ChatRouter:
         rewrite = dict((state.trace or {}).get("query_rewrite") or {})
         record = {
             "executed": True,
-            "model": getattr(settings, "generation_model", "") or "",
+            "model": semantic_router_model_label(settings),
             "original_query": state.user_message or "",
             "normalized_query": routing_query(state),
             "canonical_query": parsed.canonical_query if parsed else None,
