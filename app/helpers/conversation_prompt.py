@@ -6,6 +6,7 @@ import re
 from app.services.conversation.models import ConversationGoal, ConversationState, TurnIntent
 from app.helpers.bot_guidance import looks_like_capability_question, looks_like_unclear_user_message
 from app.helpers.conversation_reply import conversational_fallback
+from app.helpers.user_language import language_instruction, response_language
 from app.helpers.conversation_history import DEFAULT_MESSAGE_CHARS, compact_recent_history
 from app.helpers.conversation_turn import is_greeting_only, last_assistant_text
 
@@ -271,7 +272,12 @@ def build_conversation_user_prompt(state: ConversationState) -> str:
         payload.pop("tool_result")
     if not payload["user_context"]:
         payload.pop("user_context")
-    return json.dumps(payload, ensure_ascii=False)
+    prompt = json.dumps(payload, ensure_ascii=False)
+    language = response_language(state)
+    instruction = language_instruction(language)
+    if instruction:
+        prompt = f"{prompt}\n\n{instruction}"
+    return prompt
 
 
 def parse_conversation_answer(raw: str, state: ConversationState) -> str:

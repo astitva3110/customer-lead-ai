@@ -10,7 +10,7 @@ from app.helpers.bot_guidance import (
     unclear_redirect_reply,
 )
 from app.helpers.conversation_turn import is_greeting_only, is_short_no, is_short_yes, last_assistant_text, recent_assistant_texts
-from app.helpers.user_language import format_name_suffix, localized_text
+from app.helpers.user_language import format_name_suffix, localized_text, response_language
 
 _QUESTIONNAIRE_CLOSERS = (
     "what would you like to know",
@@ -23,11 +23,12 @@ _QUESTIONNAIRE_CLOSERS = (
 
 def lead_discuss_reply(state: ConversationState) -> str:
     product = state.product or "that"
+    language = response_language(state)
     if state.current_turn_intent in {TurnIntent.LEAD_INTENT, TurnIntent.SALES}:
-        return (
-            f"Absolutely! {product} is a great choice. 😊 "
-            "I can help with any questions, and I can connect you with our team whenever you're ready."
-        )
+        named = (state.product or "").strip()
+        if named and named.lower() not in {"that", "hearing aid", "a hearing aid"}:
+            return localized_text("lead_discuss_product", language, product=named)
+        return localized_text("lead_discuss_generic", language)
     if state.current_turn_intent == TurnIntent.CONTEXT_UPDATE and state.user_name:
         if state.city:
             return f"Nice to meet you, {state.user_name}. I've noted {state.city}."
@@ -72,27 +73,29 @@ def confirmation_info_reply(state: ConversationState) -> str:
     return f"Sure — I can cover {product} whenever you're ready."
 
 
-def greeting_reply(message: str = "") -> str:
+def greeting_reply(message: str = "", *, language: str = "en") -> str:
     text = (message or "").strip().lower()
-    offer = (
-        "I can help with hearing, hearing aids, buying, and connecting you with our team. "
-        "What do you need?"
-    )
+    offer = localized_text("greeting_offer", language)
     if re.search(r"\b(?:namaste|namaskar|pranam)\b", text):
-        return f"Namaste! {offer}"
+        return f"{localized_text('greeting_namaste', language).split('!')[0].strip()}! {offer}"
     if re.search(r"\bhola\b", text):
-        return f"Hola! {offer}"
+        return f"{localized_text('greeting_hola', language).split('!')[0].strip()}! {offer}"
     if re.search(r"\b(?:salaam|assalam|salam)\b", text):
-        return f"Salaam! {offer}"
+        prefix = "Salaam" if language != "hi" else "सलाम"
+        return f"{prefix}! {offer}"
     if re.search(r"\bgood morning\b", text):
-        return f"Good morning! {offer}"
+        return f"{localized_text('greeting_morning', language).split('!')[0].strip()}! {offer}"
     if re.search(r"\bgood afternoon\b", text):
-        return f"Good afternoon! {offer}"
+        prefix = "Good afternoon" if language != "hi" else "नमस्कार"
+        return f"{prefix}! {offer}"
     if re.search(r"\bgood evening\b", text):
-        return f"Good evening! {offer}"
+        prefix = "Good evening" if language != "hi" else "शुभ संध्या"
+        return f"{prefix}! {offer}"
     if re.search(r"\bgood night\b", text):
-        return f"Good night! {offer}"
-    return f"Hey! {offer}"
+        prefix = "Good night" if language != "hi" else "शुभ रात्रि"
+        return f"{prefix}! {offer}"
+    prefix = "Hey" if language == "en" else localized_text("greeting", language).split("!")[0].strip()
+    return f"{prefix}! {offer}"
 
 
 def price_query_reply(product: str = "") -> str:
@@ -137,19 +140,20 @@ def ticket_created_reply(name: str = "") -> str:
 
 def conversational_fallback(state: ConversationState) -> str:
     message = state.user_message or ""
+    language = response_language(state)
     if is_greeting_only(message):
-        return _distinct(state, greeting_reply(message))
+        return _distinct(state, greeting_reply(message, language=language))
     if looks_like_capability_question(message):
-        return _distinct(state, capability_reply())
+        return _distinct(state, capability_reply(language))
     if looks_like_unclear_user_message(message):
-        return _distinct(state, unclear_redirect_reply())
+        return _distinct(state, unclear_redirect_reply(language))
     in_support = state.conversation_goal == ConversationGoal.SUPPORT or state.mode == ChatMode.SUPPORT
     if is_short_yes(message):
         if in_support:
             return _distinct(state, support_troubleshooting_reply(state))
         return _distinct(state, confirmation_info_reply(state))
     if is_short_no(message):
-        return _distinct(state, "No problem. We can keep going whenever you're ready.")
+        return _distinct(state, localized_text("declined_choice", language))
     intent = state.current_turn_intent
     if intent == TurnIntent.CONFIRMATION:
         if in_support:
@@ -162,7 +166,7 @@ def conversational_fallback(state: ConversationState) -> str:
         TurnIntent.SALES,
     }:
         return _distinct(state, lead_discuss_reply(state))
-    return _distinct(state, capability_reply())
+    return _distinct(state, capability_reply(language))
 
 
 def repeats_previous(previous: str, candidate: str) -> bool:

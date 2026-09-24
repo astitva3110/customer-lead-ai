@@ -115,6 +115,34 @@ _TEMPLATES: dict[str, dict[str, str]] = {
         "hi": "{product} का बढ़िया विकल्प है! क्या मैं आपको हमारी टीम से जोड़ दूँ?",
         "hinglish": "{product} great choice hai! Kya main aapko hamari team se connect kar doon?",
     },
+    "lead_discuss_generic": {
+        "en": (
+            "Absolutely! I can help you find the right hearing aid, answer your questions, "
+            "and connect you with our team whenever you're ready."
+        ),
+        "hi": (
+            "बिल्कुल! मैं सही हियरिंग एड चुनने, आपके सवालों के जवाब देने "
+            "और जब चाहें हमारी टीम से जोड़ने में मदद कर सकता हूँ।"
+        ),
+        "hinglish": (
+            "Bilkul! Main sahi hearing aid choose karne, aapke sawaal ke jawab dene "
+            "aur jab chahein hamari team se connect karne mein help kar sakta hoon."
+        ),
+    },
+    "lead_discuss_product": {
+        "en": (
+            "Absolutely! {product} is a great choice. I can help with any questions, "
+            "and I can connect you with our team whenever you're ready."
+        ),
+        "hi": (
+            "बिल्कुल! {product} एक बढ़िया विकल्प है। मैं आपके सवालों के जवाब दे सकता हूँ "
+            "और जब चाहें आपको हमारी टीम से जोड़ सकता हूँ।"
+        ),
+        "hinglish": (
+            "Bilkul! {product} great choice hai. Main aapke sawaal ke jawab de sakta hoon "
+            "aur jab chahein hamari team se connect kar sakta hoon."
+        ),
+    },
     "lead_created": {
         "en": "Thanks{name}! Your details have been shared with our team. They'll get in touch with you shortly.",
         "hi": "धन्यवाद{name}! आपकी जानकारी हमारी टीम के साथ साझा कर दी गई है। वे जल्द ही आपसे संपर्क करेंगे।",
@@ -214,4 +242,76 @@ _TEMPLATES: dict[str, dict[str, str]] = {
             "Current offers ke liye main aapko hamari team se connect kar sakta hoon — bas haan boliye."
         ),
     },
+    "greeting_offer": {
+        "en": (
+            "I can help with hearing, hearing aids, buying, and connecting you with our team. "
+            "What do you need?"
+        ),
+        "hi": (
+            "मैं सुनने, हियरिंग एड, खरीदारी और हमारी टीम से जोड़ने में मदद कर सकता हूँ। "
+            "आपको किस चीज़ में मदद चाहिए?"
+        ),
+        "hinglish": (
+            "Main hearing, hearing aids, buying aur hamari team se connect karne mein help kar sakta hoon. "
+            "Aapko kya chahiye?"
+        ),
+    },
+    "capability_reply": {
+        "en": (
+            "I can answer questions about ears, hearing, and hearing aids, help you buy, "
+            "solve customer queries, and connect you with our team. What would you like help with?"
+        ),
+        "hi": (
+            "मैं कान, सुनने, हियरिंग एड, खरीदारी और ग्राहक सहायता के सवालों के जवाब दे सकता हूँ "
+            "और आपको हमारी टीम से जोड़ सकता हूँ। आपको किस चीज़ में मदद चाहिए?"
+        ),
+        "hinglish": (
+            "Main ears, hearing, hearing aids, buying aur customer queries ke jawab de sakta hoon "
+            "aur aapko hamari team se connect kar sakta hoon. Aapko kis cheez mein help chahiye?"
+        ),
+    },
+    "insufficient_redirect": {
+        "en": (
+            "I can help with questions about ear health, hearing, hearing aids, and Earkart. "
+            "Ask me about those, or I can connect you with our team."
+        ),
+        "hi": (
+            "मैं कान की सेहत, सुनने, हियरिंग एड और Earkart से जुड़े सवालों में मदद कर सकता हूँ। "
+            "इनके बारे में पूछें, या मैं आपको हमारी टीम से जोड़ सकता हूँ।"
+        ),
+        "hinglish": (
+            "Main ear health, hearing, hearing aids aur Earkart ke baare mein help kar sakta hoon. "
+            "Inke baare mein poochiye, ya main aapko hamari team se connect kar sakta hoon."
+        ),
+    },
+    "unclear_redirect": {
+        "en": (
+            "I'm here for ear health, hearing, hearing aids, buying, customer queries, "
+            "and connecting you with our team. Tell me what you need in a few words."
+        ),
+        "hi": (
+            "मैं कान की सेहत, सुनने, हियरिंग एड, खरीदारी और ग्राहक सहायता में मदद के लिए यहाँ हूँ। "
+            "थोड़े शब्दों में बताइए आपको क्या चाहिए।"
+        ),
+        "hinglish": (
+            "Main ear health, hearing, hearing aids, buying aur customer queries mein help ke liye yahan hoon. "
+            "Thode words mein bataye aapko kya chahiye."
+        ),
+    },
 }
+
+
+def language_examples(language: str) -> str:
+    if language == "hi":
+        return (
+            "Language example:\n"
+            'User: "TINY kya hai?"\n'
+            'Return: {"answer": "TINY एक रिचार्जेबल हियरिंग एड है जिसमें साफ आवाज़ के लिए 16-चैनल प्रोसेसिंग होती है।"}\n'
+        )
+    if language == "hinglish":
+        return (
+            "Language example:\n"
+            'User: "TINY kya hai?"\n'
+            'Return: {"answer": "TINY ek rechargeable hearing aid hai jisme clear sound ke liye 16-channel processing hoti hai."}\n'
+        )
+    return ""

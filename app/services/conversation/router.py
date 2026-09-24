@@ -666,6 +666,14 @@ class ChatRouter:
                     confidence=0.98,
                 )
         last_assistant = last_assistant_text(state)
+        if looks_like_contact_request(raw_message) or looks_like_contact_request(message):
+            return TurnUnderstanding(
+                turn_intent=TurnIntent.LEAD_INTENT,
+                needs_rag=False,
+                lead_intent=True,
+                explicit_action="create_lead",
+                confidence=0.95,
+            )
         if looks_like_ticket_request(raw_message) or looks_like_ticket_request(message):
             return TurnUnderstanding(
                 turn_intent=TurnIntent.SUPPORT_INTENT,

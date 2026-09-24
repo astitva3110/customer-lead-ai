@@ -16,22 +16,12 @@ from app.helpers.conversation_turn import (
     is_short_yes,
 )
 from app.helpers.query_normalize import looks_like_informational_question, looks_like_knowledge_request, strip_query_fillers
+from app.helpers.user_language import localized_text
 from app.services.conversation.models import ConversationGoal, ConversationState
 
-CAPABILITY_REPLY = (
-    "I can answer questions about ears, hearing, and hearing aids, help you buy, "
-    "solve customer queries, and connect you with our team. What would you like help with?"
-)
-
-INSUFFICIENT_REDIRECT_REPLY = (
-    "I can help with questions about ear health, hearing, hearing aids, and Earkart. "
-    "Ask me about those, or I can connect you with our team."
-)
-
-UNCLEAR_REDIRECT_REPLY = (
-    "I'm here for ear health, hearing, hearing aids, buying, customer queries, "
-    "and connecting you with our team. Tell me what you need in a few words."
-)
+CAPABILITY_REPLY = localized_text("capability_reply", "en")
+INSUFFICIENT_REDIRECT_REPLY = localized_text("insufficient_redirect", "en")
+UNCLEAR_REDIRECT_REPLY = localized_text("unclear_redirect", "en")
 
 _BOT_CAPABILITY_RE = re.compile(
     r"(?:"
@@ -70,12 +60,16 @@ _DOMAIN_RE = re.compile(
 _STRETCHED_LETTER_RE = re.compile(r"([A-Za-z])\1{2,}")
 
 
-def capability_reply() -> str:
-    return CAPABILITY_REPLY
+def capability_reply(language: str = "en") -> str:
+    return localized_text("capability_reply", language)
 
 
-def unclear_redirect_reply() -> str:
-    return UNCLEAR_REDIRECT_REPLY
+def insufficient_redirect_reply(language: str = "en") -> str:
+    return localized_text("insufficient_redirect", language)
+
+
+def unclear_redirect_reply(language: str = "en") -> str:
+    return localized_text("unclear_redirect", language)
 
 
 def _normalized(message: str) -> str:

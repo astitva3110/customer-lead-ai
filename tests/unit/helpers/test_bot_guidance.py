@@ -1,8 +1,8 @@
 from app.helpers.bot_guidance import (
-    CAPABILITY_REPLY,
-    UNCLEAR_REDIRECT_REPLY,
+    capability_reply,
     looks_like_capability_question,
     looks_like_unclear_user_message,
+    unclear_redirect_reply,
 )
 from app.helpers.hearing_symptom_normalize import analyze_hearing_symptom
 from app.services.conversation.models import ChatMode, ConversationState, TurnIntent
@@ -61,9 +61,9 @@ def test_orchestrator_capability_and_unclear_do_not_hit_kb() -> None:
     assert "hearing" in first.response.lower() or "help" in first.response.lower()
     asked = orchestrator.handle(cid, "Kya karooo")
     assert knowledge.queries == []
-    assert asked.response == CAPABILITY_REPLY
+    assert asked.response == capability_reply("hinglish")
     unclear = orchestrator.handle(cid, "AAP KAHAN HO")
-    assert unclear.response == UNCLEAR_REDIRECT_REPLY
+    assert unclear.response == unclear_redirect_reply("hinglish")
     assert "knowledge base" not in unclear.response.lower()
 
 

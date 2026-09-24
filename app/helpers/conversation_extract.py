@@ -211,38 +211,68 @@ def looks_like_trial_request(message: str) -> bool:
     )
 
 
+_HEARING_TYPO_RE = re.compile(
+    r"\b(?:heaing|heairng|hearng|hearin|hering|hearing)\b",
+    re.IGNORECASE,
+)
 _HEARING_AID_WANT_RE = re.compile(
-    r"\bi want (?:a |an |the )?hearing aids?\b",
+    r"\bi want (?:a |an |the )?(?:to buy\s+)?hearing(?:\s+aids?)?\b",
     re.IGNORECASE,
 )
 _HEARING_AID_ACQUIRE_RE = re.compile(
-    r"\b(?:need|want|get|buy|purchase|order)\s+(?:a |an |the |ek )?hearing aids?\b",
+    r"\b(?:need|want|get|buy|purchase|order)\s+(?:a |an |the |ek )?hearing(?:\s+aids?)?\b",
     re.IGNORECASE,
 )
 _HINGLISH_ACQUISITION_RE = re.compile(
     r"(?:"
-    r"\b(?:mujhe|mujhko|muje|humein|humko)\s+(?:ek\s+)?hearing aids?\s+(?:chaiye|chahiye|chahie|lena hai|chahie)\b"
-    r"|\bhearing aids?\s+(?:chaiye|chahiye|chahie)\b"
-    r"|\b(?:mujhe|mujhko|muje)\s+ek\s+hearing aids?\b"
+    r"\b(?:mujhe|mujhko|muje|humein|humko)\s+(?:ek\s+)?hearing(?:\s+aids?)?\s+"
+    r"(?:chaiye|chahiye|chahie|lena hai|chahie)(?:\s+(?:thi|tha|the|hai))?\b"
+    r"|\bhearing(?:\s+aids?)?\s+(?:chaiye|chahiye|chahie)(?:\s+(?:thi|tha|the|hai))?\b"
+    r"|\b(?:mujhe|mujhko|muje)\s+ek\s+hearing(?:\s+aids?)?\b"
     r")",
     re.IGNORECASE,
 )
+_HINDI_ACQUISITION_RE = re.compile(
+    r"(?:"
+    r"मुझे\s+.{0,30}?(?:हियरिंग\s*एड|हियरिंग\s*ऐड|कान\s*की\s*मशीन).{0,30}?(?:चाहिए|चाहिये|चाहीए|लेना\s+है)"
+    r"|(?:हियरिंग\s*एड|हियरिंग\s*ऐड)\s+.{0,20}?(?:चाहिए|चाहिये|चाहीए)"
+    r")"
+)
+
+
+def _normalize_acquisition_message(message: str) -> str:
+    from app.helpers.conversation_turn import strip_greeting_prefix
+
+    text = strip_greeting_prefix((message or "").strip()) or (message or "").strip()
+    return _HEARING_TYPO_RE.sub("hearing", text)
 
 
 def looks_like_acquisition_intent(message: str) -> bool:
     """User wants to obtain or buy a hearing aid/product — not reporting a device fault."""
-    text = (message or "").strip()
+    text = _normalize_acquisition_message(message)
     if not text:
         return False
     if looks_like_knowledge_request(text) or looks_like_informational_question(text):
         return False
     if looks_like_device_support_issue(text):
         return False
-    if re.search(r"\bi want to\b", text, flags=re.IGNORECASE):
+    if re.search(
+        r"\bi want to (?:know|learn|understand|ask|find out)\b",
+        text,
+        flags=re.IGNORECASE,
+    ):
         return False
+    if re.search(
+        r"\bi want to (?:buy|purchase|order)\b.*\bhearing(?:\s+aids?)?\b",
+        text,
+        flags=re.IGNORECASE,
+    ):
+        return True
     if _HEARING_AID_WANT_RE.search(text) or _HEARING_AID_ACQUIRE_RE.search(text):
         return True
     if _HINGLISH_ACQUISITION_RE.search(text):
+        return True
+    if _HINDI_ACQUISITION_RE.search(text):
         return True
     named = extract_product(text)
     if named:

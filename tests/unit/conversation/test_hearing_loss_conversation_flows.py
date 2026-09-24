@@ -51,6 +51,12 @@ def test_hinglish_hearing_aid_request_is_acquisition_not_support() -> None:
         "hi mujhe ek hearing aid chaiye",
         "mujhe ek hearing aid chahiye",
         "hearing aid chahiye",
+        "mujhe hearing chaiye",
+        "i need hearing aid",
+        "मुझे हियरिंग एड चाहिए",
+        "hi mujhe heaing aid chaiye thi",
+        "hi mujhe heaing Aid chaiye",
+        "i want to buy heaing aid",
     ):
         assert looks_like_acquisition_intent(message)
     assert not looks_like_acquisition_intent("my hearing aid is not working")
@@ -84,6 +90,32 @@ def test_hinglish_hearing_aid_request_routes_to_lead_even_when_semantic_says_sup
     assert result.support_intent is False
     assert result.current_turn_intent == TurnIntent.LEAD_INTENT
     assert "having trouble" not in (result.response or "").lower()
+
+
+def test_typo_hearing_aid_requests_route_to_lead_not_knowledge() -> None:
+    orchestrator, knowledge, *_ = make_orchestrator()
+    result = orchestrator.handle("typo-acquisition", "hi mujhe heaing aid chaiye thi")
+    assert result.current_turn_intent == TurnIntent.LEAD_INTENT
+    assert result.mode == ChatMode.LEAD
+    assert knowledge.queries == []
+    assert "hearing aid options" not in (result.response or "").lower()
+
+
+def test_hindi_and_shorthand_hearing_requests_route_to_lead() -> None:
+    orchestrator, knowledge, *_ = make_orchestrator()
+    hindi = orchestrator.handle("hi-acquisition", "मुझे हियरिंग एड चाहिए")
+    assert hindi.current_turn_intent == TurnIntent.LEAD_INTENT
+    assert hindi.mode == ChatMode.LEAD
+    assert hindi.conversation_goal in {ConversationGoal.LEAD, ConversationGoal.SALES}
+    assert knowledge.queries == []
+    assert "ear health" not in (hindi.response or "").lower()
+
+    shorthand = orchestrator.handle("hinglish-short", "mujhe hearing chaiye")
+    assert shorthand.current_turn_intent == TurnIntent.LEAD_INTENT
+    assert shorthand.mode == ChatMode.LEAD
+    assert shorthand.conversation_goal in {ConversationGoal.LEAD, ConversationGoal.SALES}
+    assert knowledge.queries == []
+    assert "jankari" not in (shorthand.response or "").lower()
 
 
 def test_i_want_a_hearing_aid_after_hearing_loss_is_sales_not_support() -> None:

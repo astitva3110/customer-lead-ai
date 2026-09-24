@@ -72,6 +72,12 @@ def test_build_conversation_prompt_includes_language_instruction() -> None:
     assert "Hinglish" in prompt
 
 
+def test_localized_capability_reply_hinglish() -> None:
+    text = localized_text("capability_reply", "hinglish")
+    assert "hearing aids" in text.lower()
+    assert "help" in text.lower()
+
+
 def test_build_generation_prompt_includes_language_instruction() -> None:
     from app.helpers.generation_prompt import build_generation_user_prompt
 
@@ -88,3 +94,23 @@ def test_build_generation_prompt_includes_language_instruction() -> None:
         response_language="hinglish",
     )
     assert "Hinglish" in prompt
+    assert "TINY kya hai?" in prompt
+
+
+def test_build_generation_prompt_includes_hindi_example() -> None:
+    from app.helpers.generation_prompt import build_generation_user_prompt
+
+    class Hit:
+        chunk_id = "c1"
+        document_title = "T"
+        section_path = []
+        document_id = "d1"
+        text = "TINY is a hearing aid."
+
+    prompt = build_generation_user_prompt(
+        "TINY kya hai?",
+        [Hit()],
+        response_language="hi",
+    )
+    assert "Devanagari" in prompt
+    assert "रिचार्जेबल" in prompt

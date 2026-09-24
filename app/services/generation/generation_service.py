@@ -19,9 +19,11 @@ from app.helpers.bot_guidance import (
     looks_like_unclear_user_message,
     unclear_redirect_reply,
 )
-from app.helpers.quick_replies import attach_lead_offer_after_sales_pitch
-from app.helpers.conversation_reply import conversational_fallback, repeats_recent_assistant
-from app.helpers.conversation_turn import has_greeting_prefix
+from app.helpers.user_language import response_language
+from app.helpers.conversation_extract import looks_like_acquisition_intent
+from app.helpers.quick_replies import attach_lead_offer_after_sales_pitch, attach_lead_offer_buttons
+from app.helpers.conversation_reply import conversational_fallback, greeting_reply, lead_discuss_reply, repeats_recent_assistant
+from app.helpers.conversation_turn import has_greeting_prefix, is_greeting_only
 from app.helpers.generation_json import extract_json_object
 from app.helpers.generation_prompt import GENERATION_SYSTEM_PROMPT, build_generation_user_prompt
 from app.helpers.generation_validate import explain_generation_payload, validate_generation_payload
@@ -154,13 +156,22 @@ class GenerationService:
         if (state.response or "").strip():
             return state
         fallback = conversational_fallback(state)
+        language = response_language(state)
+        if is_greeting_only(state.user_message or ""):
+            state.response = greeting_reply(state.user_message or "", language=language)
+            attach_lead_offer_after_sales_pitch(state)
+            return state
         if idle_for_bot_guidance(state) and looks_like_capability_question(state.user_message or ""):
-            state.response = capability_reply()
+            state.response = capability_reply(language)
             attach_lead_offer_after_sales_pitch(state)
             return state
         if idle_for_bot_guidance(state) and looks_like_unclear_user_message(state.user_message or ""):
-            state.response = unclear_redirect_reply()
+            state.response = unclear_redirect_reply(language)
             attach_lead_offer_after_sales_pitch(state)
+            return state
+        if looks_like_acquisition_intent(state.user_message or ""):
+            state.response = lead_discuss_reply(state)
+            attach_lead_offer_buttons(state)
             return state
         if not self._llm.is_configured:
             state.response = fallback

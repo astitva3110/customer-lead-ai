@@ -7,6 +7,7 @@ from typing import Any
 from app.helpers.conversation_reply import greeting_reply
 from app.helpers.bot_guidance import (
     capability_reply,
+    insufficient_redirect_reply,
     looks_like_capability_question,
     looks_like_unclear_user_message,
     unclear_redirect_reply,
@@ -47,7 +48,7 @@ class KnowledgeFlow:
     def handle(self, state: ConversationState) -> ConversationState:
         original_query = state.user_message or ""
         if is_greeting_only(original_query):
-            state.response = greeting_reply(original_query)
+            state.response = greeting_reply(original_query, language=response_language(state))
             state.sources = []
             state.trace = dict(state.trace or {})
             state.trace["should_retrieve"] = False
@@ -67,7 +68,7 @@ class KnowledgeFlow:
             state.trace["social_shortcut"] = True
             return state
         if looks_like_capability_question(original_query):
-            state.response = capability_reply()
+            state.response = capability_reply(response_language(state))
             state.sources = []
             state.trace = dict(state.trace or {})
             state.trace["should_retrieve"] = False
@@ -76,7 +77,7 @@ class KnowledgeFlow:
             state.trace["bot_guidance_shortcut"] = True
             return state
         if looks_like_unclear_user_message(original_query):
-            state.response = unclear_redirect_reply()
+            state.response = unclear_redirect_reply(response_language(state))
             state.sources = []
             state.trace = dict(state.trace or {})
             state.trace["should_retrieve"] = False
@@ -172,7 +173,7 @@ class KnowledgeFlow:
         if not hits:
             state.response = append_workflow_resume_after_knowledge(
                 state,
-                INSUFFICIENT_INFORMATION_MESSAGE,
+                insufficient_redirect_reply(response_language(state)),
             )
             state.sources = []
             state.trace["model_used"] = ""

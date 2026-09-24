@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.helpers.user_language import language_instruction
+from app.helpers.user_language import language_examples, language_instruction
 
 GENERATION_SYSTEM_PROMPT = """You are a helpful Earkart hearing-care sales and support representative.
 
@@ -137,6 +137,7 @@ def build_generation_user_prompt(
         )
     mode_guidance = _response_mode_guidance(query)
     language = language_instruction(response_language)
+    examples = language_examples(response_language)
     return (
         "Knowledge-base context:\n\n"
         f"{context}\n\n"
@@ -146,6 +147,7 @@ def build_generation_user_prompt(
         "Do not prepend a company or product overview unless the user asked for it.\n"
         "Mention only the facts needed to answer the current question.\n"
         f"{language}"
+        f"{examples}"
         f"{greeting}"
         f"{mode_guidance}"
         "If this is part of a sales or support conversation, do not switch into form-filling.\n"
