@@ -3,6 +3,12 @@ from __future__ import annotations
 import re
 
 from app.services.conversation.models import ChatMode, ConversationGoal, ConversationState, TurnIntent
+from app.helpers.bot_guidance import (
+    capability_reply,
+    looks_like_capability_question,
+    looks_like_unclear_user_message,
+    unclear_redirect_reply,
+)
 from app.helpers.conversation_turn import is_greeting_only, is_short_no, is_short_yes, last_assistant_text, recent_assistant_texts
 from app.helpers.user_language import format_name_suffix, localized_text
 
@@ -68,21 +74,25 @@ def confirmation_info_reply(state: ConversationState) -> str:
 
 def greeting_reply(message: str = "") -> str:
     text = (message or "").strip().lower()
+    offer = (
+        "I can help with hearing, hearing aids, buying, and connecting you with our team. "
+        "What do you need?"
+    )
     if re.search(r"\b(?:namaste|namaskar|pranam)\b", text):
-        return "Namaste! How can I help you today?"
+        return f"Namaste! {offer}"
     if re.search(r"\bhola\b", text):
-        return "Hola! How can I help you today?"
+        return f"Hola! {offer}"
     if re.search(r"\b(?:salaam|assalam|salam)\b", text):
-        return "Salaam! How can I help you today?"
+        return f"Salaam! {offer}"
     if re.search(r"\bgood morning\b", text):
-        return "Good morning! How can I help you today?"
+        return f"Good morning! {offer}"
     if re.search(r"\bgood afternoon\b", text):
-        return "Good afternoon! How can I help you today?"
+        return f"Good afternoon! {offer}"
     if re.search(r"\bgood evening\b", text):
-        return "Good evening! How can I help you today?"
+        return f"Good evening! {offer}"
     if re.search(r"\bgood night\b", text):
-        return "Good night! How can I help you today?"
-    return "Hey! How can I help you today?"
+        return f"Good night! {offer}"
+    return f"Hey! {offer}"
 
 
 def price_query_reply(product: str = "") -> str:
@@ -129,6 +139,10 @@ def conversational_fallback(state: ConversationState) -> str:
     message = state.user_message or ""
     if is_greeting_only(message):
         return _distinct(state, greeting_reply(message))
+    if looks_like_capability_question(message):
+        return _distinct(state, capability_reply())
+    if looks_like_unclear_user_message(message):
+        return _distinct(state, unclear_redirect_reply())
     in_support = state.conversation_goal == ConversationGoal.SUPPORT or state.mode == ChatMode.SUPPORT
     if is_short_yes(message):
         if in_support:
@@ -148,7 +162,7 @@ def conversational_fallback(state: ConversationState) -> str:
         TurnIntent.SALES,
     }:
         return _distinct(state, lead_discuss_reply(state))
-    return _distinct(state, "Happy to help.")
+    return _distinct(state, capability_reply())
 
 
 def repeats_previous(previous: str, candidate: str) -> bool:

@@ -4,6 +4,7 @@ import json
 import re
 
 from app.services.conversation.models import ConversationGoal, ConversationState, TurnIntent
+from app.helpers.bot_guidance import looks_like_capability_question, looks_like_unclear_user_message
 from app.helpers.conversation_reply import conversational_fallback
 from app.helpers.conversation_history import DEFAULT_MESSAGE_CHARS, compact_recent_history
 from app.helpers.conversation_turn import is_greeting_only, last_assistant_text
@@ -20,7 +21,7 @@ Rules:
 - Acknowledge the current message first. Answer it before asking anything.
 - Use conversation history for short replies such as yes/no.
 - Do not repeat your previous assistant message.
-- If the user only greeted you, greet them back briefly and offer to help. Do not introduce the company unless they asked about it.
+- If the user only greeted you, greet them back briefly and say you can help with hearing, hearing aids, buying, customer queries, and connecting them with our team. Do not introduce the company unless they asked about it.
 - If they greeted you and asked a question, greet them briefly, then answer that question. Do not start with a company overview.
 - Greet only when the user greeted you on this turn. Do not greet every turn.
 - If they volunteered a name, acknowledge it once naturally (for example "Nice to meet you, Rahul!"). Do not ask for the name again.
@@ -38,8 +39,9 @@ Rules:
 - Never claim a lead or support ticket was created unless a successful tool result is supplied.
 - If a successful contact or ticket result is supplied, thank them and close. Do not ask whether they need anything else.
 - Never invent company or product facts (price, warranty, specs, battery, availability, delivery, medical claims). If no knowledge context is supplied, do not state those facts.
-- If the user asked a factual, informational, product, company, policy, warranty, pricing, or person-related question and no knowledge context is supplied, say the information is unavailable. Do not answer from general knowledge.
-- Conversational replies without knowledge context are only for greetings, thanks, acknowledgements, small talk, and pleasantries.
+- If the user asked a factual, informational, product, company, policy, warranty, pricing, or person-related question and no knowledge context is supplied, do not invent facts. Steer them toward ear health, hearing, hearing aids, and Earkart, or offer to connect them with our team.
+- If they asked what you can do, or sent a short unclear prompt (for example kya karo, bolo, sir), explain that you can answer ear and hearing-aid questions, help with buying, solve customer queries, and connect them with our team. Do not say the knowledge base is empty.
+- Conversational replies without knowledge context are for greetings, thanks, acknowledgements, small talk, capability questions, and unclear messages that need steering.
 - Do not always end with a question. Often acknowledge, answer, or offer a next step. A complete sentence with no follow-up is fine.
 - Do not use repetitive closers such as "Would you like to know more?", "Do you need any other help?", or "How can I assist you further?" unless they are genuinely useful.
 - Keep replies short, professional, and varied.
@@ -122,8 +124,21 @@ def _situation(state: ConversationState) -> str:
                 "Do not restart the conversation or describe the company."
             )
         return (
-            "The user greeted you. Greet them back briefly and offer to help. "
+            "The user greeted you. Greet them back briefly. "
+            "Then in one short sentence say you can help with hearing and hearing-aid questions, buying, customer queries, and connecting them with our team. "
             "Do not describe the company unless they asked about it."
+        )
+    if looks_like_capability_question(state.user_message or ""):
+        return (
+            "The user asked what you can do, or prompted you to speak. "
+            "Explain that you can answer questions about ears, hearing, and hearing aids, help them buy, solve customer queries, and connect them with our team. "
+            "Ask what they need. Do not say the knowledge base is empty."
+        )
+    if looks_like_unclear_user_message(state.user_message or ""):
+        return (
+            "The user's message is unclear or off-topic. "
+            "Steer them toward ear health, hearing, hearing aids, or Earkart. "
+            "Mention you can also connect them with our team. Do not invent product facts."
         )
     if state.conversation_goal in {ConversationGoal.LEAD, ConversationGoal.SALES}:
         product = state.product or "a hearing aid"

@@ -19,6 +19,8 @@ def test_awaz_nahi_is_personal_hearing_not_device() -> None:
         "mujhe awaz nahi aa rahe hai",
         "mujhe awaz nahi aati",
         "sunai nahi deta",
+        "sunai problem hore",
+        "1aaankh sunai problem hore",
     ):
         analysis = analyze_hearing_symptom(message)
         assert analysis.matched

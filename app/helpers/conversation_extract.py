@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import re
 
+from app.helpers.hearing_symptom_normalize import (
+    is_device_hearing_symptom,
+    is_personal_hearing_difficulty,
+)
 from app.helpers.phone import extract_and_validate_phone, looks_like_phone_attempt
 from app.helpers.query_normalize import looks_like_informational_question, looks_like_knowledge_request
 from app.services.conversation.query_rewriter import extract_product
@@ -48,6 +52,7 @@ _HEARING_HEALTH_RE = re.compile(
     r"\b(?:i(?:'m| am)?|i have|i've|having|have got|got)\s+(?:a\s+)?hearing\s+(?:problem|issue|trouble|loss)"
     r"|\b(?:my|our)\s+hearing\s+(?:problem|issue|trouble|loss|is\s+(?:bad|poor|worse))"
     r"|\bhearing\s+(?:problem|issue|trouble|loss)\b"
+    r"|\bsunai\s+(?:problem|issue|trouble|loss|nahi|kam)\b"
     r"|\b(?:can't|cannot|can not)\s+hear\b"
     r"|\b(?:difficulty|trouble)\s+hearing\b"
     r")",
@@ -145,7 +150,11 @@ def looks_like_purchase_intent(message: str) -> bool:
 def looks_like_general_hearing_concern(message: str) -> bool:
     """General hearing-health statements — not device/customer-service faults."""
     text = (message or "").strip()
-    if not text or not _HEARING_HEALTH_RE.search(text):
+    if not text:
+        return False
+    if is_personal_hearing_difficulty(text):
+        return True
+    if not _HEARING_HEALTH_RE.search(text):
         return False
     if re.search(
         r"^\s*(?:what|who|where|when|why|how|tell me about|explain)\b",
@@ -260,6 +269,8 @@ def looks_like_device_support_issue(message: str) -> bool:
         return False
     if looks_like_general_hearing_concern(text) and not _DEVICE_CONTEXT_RE.search(text):
         return False
+    if is_device_hearing_symptom(text):
+        return True
     lowered = text.lower()
     if any(token in lowered for token in _DEVICE_ISSUE_HINTS):
         return True

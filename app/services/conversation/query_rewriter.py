@@ -11,6 +11,7 @@ from app.helpers.conversation_turn import (
     wants_more_product_info,
 )
 from app.helpers.query_normalize import canonicalize_knowledge_query
+from app.helpers.hearing_symptom_normalize import analyze_hearing_symptom
 from app.services.conversation.models import ConversationGoal, ConversationState
 
 PRONOUN_RE = re.compile(r"\b(it|its|this|that|the product)\b", re.IGNORECASE)
@@ -233,6 +234,15 @@ class QueryRewriter:
         original = (state.user_message or "").strip()
         result = normalize_for_routing(original, product=state.product or "")
         state.trace = dict(state.trace or {})
+        symptom = analyze_hearing_symptom(original)
+        if symptom.matched:
+            state.trace["hearing_symptom"] = symptom.to_dict()
+            result = RewriteResult(
+                original_query=original,
+                rewritten_query=symptom.canonical_en,
+                confidence=0.95,
+                entities=result.entities,
+            )
         state.trace["query_rewrite"] = result.to_dict()
         if result.changed and result.confidence >= REWRITE_CONFIDENCE_FLOOR:
             state.query_rewritten = result.rewritten_query

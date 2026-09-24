@@ -47,7 +47,8 @@ _PERSONAL_HEARING_RE = re.compile(
     rf"|sunai\s+(?:kam|low|weak)"
     rf"|(?:can't|cannot|can not)\s+hear\b"
     rf"|(?:difficulty|trouble|problem)\s+(?:hearing|listening)\b"
-    rf"|(?:hearing|sunne)\s+(?:problem|issue|loss|kam)\b"
+    rf"|(?:hearing|sunne|sunai|sunaai)\s+(?:problem|issue|loss|kam)\b"
+    rf"|{_SOUND}\s+(?:problem|issue)\b"
     rf")",
     re.IGNORECASE,
 )

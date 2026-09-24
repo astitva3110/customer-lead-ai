@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.evaluation.client import TurnOutcome
 from app.evaluation.schema import ConversationExpected, GeneratedConversation, TurnMessage, conversation_id_for
+from app.services.generation.models import INSUFFICIENT_INFORMATION_MESSAGE
 
 
 def make_conversation(**overrides) -> GeneratedConversation:
@@ -128,7 +129,7 @@ def passing_handle(conversation_id: str, message: str) -> TurnOutcome:
             final=[],
             grounded=False,
             reason="llm_ungrounded",
-            response="I don't have enough information in the available knowledge base to answer that accurately.",
+            response=INSUFFICIENT_INFORMATION_MESSAGE,
         )
     return TurnOutcome(
         conversation_id=conversation_id,

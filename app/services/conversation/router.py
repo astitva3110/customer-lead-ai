@@ -26,6 +26,12 @@ from app.helpers.quick_replies import (
 from app.helpers.workflow_resume import is_active_lead_collection
 from app.services.conversation.query_rewriter import extract_product, routing_query
 from app.interfaces.providers.llm import LLMProvider
+from app.helpers.bot_guidance import (
+    idle_for_bot_guidance,
+    looks_like_capability_question,
+    looks_like_unclear_user_message,
+    needs_bot_guidance,
+)
 from app.helpers.conversation_extract import (
     extract_city,
     extract_issue,
@@ -256,6 +262,8 @@ class ChatRouter:
         message = state.user_message or ""
         if is_greeting_only(message) or is_casual_conversation(message):
             return "social_conversation"
+        if idle_for_bot_guidance(state) and needs_bot_guidance(message):
+            return "bot_guidance"
         if (
             looks_like_general_hearing_concern(message)
             and not looks_like_device_support_issue(message)
@@ -438,6 +446,10 @@ class ChatRouter:
         if social:
             understanding = social
             state.trace["social_conversation_override"] = True
+        guidance = self._bot_guidance_override(state, understanding)
+        if guidance:
+            understanding = guidance
+            state.trace["bot_guidance_override"] = True
         self._apply_understanding(state, understanding)
         if not state.trace.get("semantic_router_used"):
             if self._should_refine(state, understanding):
@@ -491,6 +503,26 @@ class ChatRouter:
     ) -> TurnUnderstanding | None:
         message = state.user_message or ""
         if not is_casual_conversation(message):
+            return None
+        if understanding.turn_intent == TurnIntent.GENERAL and not understanding.needs_rag:
+            return None
+        return TurnUnderstanding(
+            turn_intent=TurnIntent.GENERAL,
+            needs_rag=False,
+            lead_intent=False,
+            support_intent=False,
+            information_updates=dict(understanding.information_updates or {}),
+            user_context_updates=understanding.user_context_updates,
+            confidence=max(understanding.confidence, 0.99),
+        )
+
+    def _bot_guidance_override(
+        self,
+        state: ConversationState,
+        understanding: TurnUnderstanding,
+    ) -> TurnUnderstanding | None:
+        message = state.user_message or ""
+        if not idle_for_bot_guidance(state) or not needs_bot_guidance(message):
             return None
         if understanding.turn_intent == TurnIntent.GENERAL and not understanding.needs_rag:
             return None
@@ -847,6 +879,10 @@ class ChatRouter:
         elif name or city or phone or context:
             intent = TurnIntent.CONTEXT_UPDATE
         elif is_casual_conversation(raw_message) or is_casual_conversation(routed):
+            intent = TurnIntent.GENERAL
+        elif looks_like_capability_question(message) or looks_like_capability_question(raw_message):
+            intent = TurnIntent.GENERAL
+        elif looks_like_unclear_user_message(message) or looks_like_unclear_user_message(raw_message):
             intent = TurnIntent.GENERAL
         elif looks_like_informational_question(message) or looks_like_informational_question(raw_message):
             intent = TurnIntent.KNOWLEDGE
@@ -1270,6 +1306,8 @@ class ChatRouter:
             return False
         message = (state.user_message or "").strip()
         if is_greeting_only(message) or is_casual_conversation(message):
+            return False
+        if needs_bot_guidance(message):
             return False
         if understanding.turn_intent == TurnIntent.PROVIDE_INFORMATION and state.awaiting_field:
             return False

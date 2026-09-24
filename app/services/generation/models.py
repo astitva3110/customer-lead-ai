@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-INSUFFICIENT_INFORMATION_MESSAGE = (
-    "I don't have enough information in the available knowledge base to answer that accurately."
-)
+from app.helpers.bot_guidance import INSUFFICIENT_REDIRECT_REPLY
+
+INSUFFICIENT_INFORMATION_MESSAGE = INSUFFICIENT_REDIRECT_REPLY
 
 
 @dataclass(frozen=True)

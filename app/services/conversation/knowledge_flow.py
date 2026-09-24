@@ -5,6 +5,12 @@ import time
 from typing import Any
 
 from app.helpers.conversation_reply import greeting_reply
+from app.helpers.bot_guidance import (
+    capability_reply,
+    looks_like_capability_question,
+    looks_like_unclear_user_message,
+    unclear_redirect_reply,
+)
 from app.helpers.conversation_turn import is_casual_conversation, is_greeting_only
 from app.helpers.user_language import response_language
 from app.helpers.workflow_resume import append_workflow_resume_after_knowledge, next_missing_lead_field
@@ -59,6 +65,24 @@ class KnowledgeFlow:
             state.trace["retrieval_used"] = False
             state.trace["retrieval_started"] = False
             state.trace["social_shortcut"] = True
+            return state
+        if looks_like_capability_question(original_query):
+            state.response = capability_reply()
+            state.sources = []
+            state.trace = dict(state.trace or {})
+            state.trace["should_retrieve"] = False
+            state.trace["retrieval_used"] = False
+            state.trace["retrieval_started"] = False
+            state.trace["bot_guidance_shortcut"] = True
+            return state
+        if looks_like_unclear_user_message(original_query):
+            state.response = unclear_redirect_reply()
+            state.sources = []
+            state.trace = dict(state.trace or {})
+            state.trace["should_retrieve"] = False
+            state.trace["retrieval_used"] = False
+            state.trace["retrieval_started"] = False
+            state.trace["bot_guidance_shortcut"] = True
             return state
         if not state.trace.get("should_retrieve", True):
             state.response = state.response or "Thanks, I've noted that."

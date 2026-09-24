@@ -12,6 +12,13 @@ from app.helpers.conversation_prompt import (
     build_conversation_user_prompt,
     parse_conversation_answer,
 )
+from app.helpers.bot_guidance import (
+    capability_reply,
+    idle_for_bot_guidance,
+    looks_like_capability_question,
+    looks_like_unclear_user_message,
+    unclear_redirect_reply,
+)
 from app.helpers.quick_replies import attach_lead_offer_after_sales_pitch
 from app.helpers.conversation_reply import conversational_fallback, repeats_recent_assistant
 from app.helpers.conversation_turn import has_greeting_prefix
@@ -147,6 +154,14 @@ class GenerationService:
         if (state.response or "").strip():
             return state
         fallback = conversational_fallback(state)
+        if idle_for_bot_guidance(state) and looks_like_capability_question(state.user_message or ""):
+            state.response = capability_reply()
+            attach_lead_offer_after_sales_pitch(state)
+            return state
+        if idle_for_bot_guidance(state) and looks_like_unclear_user_message(state.user_message or ""):
+            state.response = unclear_redirect_reply()
+            attach_lead_offer_after_sales_pitch(state)
+            return state
         if not self._llm.is_configured:
             state.response = fallback
             attach_lead_offer_after_sales_pitch(state)
